@@ -42,7 +42,6 @@ export type CarSearchQuery = {
   q?: string;
   make?: string;
   source?: AuctionSource | "all";
-  damage?: DamageType | "all";
   minYear?: number;
   maxYear?: number;
   maxMileageKm?: number;

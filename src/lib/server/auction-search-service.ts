@@ -15,7 +15,6 @@ function buildSearchCacheKey(query: CarSearchQuery) {
     q: query.q ?? "",
     make: query.make ?? "all",
     source: query.source ?? "all",
-    damage: query.damage ?? "all",
     minYear: query.minYear ?? null,
     maxYear: query.maxYear ?? null,
     maxMileageKm: query.maxMileageKm ?? null,

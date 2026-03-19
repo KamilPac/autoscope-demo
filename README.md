@@ -32,7 +32,6 @@ Supported query params:
 - `q`
 - `make`
 - `source` (`all` | `marketcheck`)
-- `damage`
 - `minYear`
 - `maxYear`
 - `maxMileageKm`

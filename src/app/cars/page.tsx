@@ -63,7 +63,6 @@ export default async function CarsPage({
                 q: params.q ?? "",
                 make: params.make ?? "all",
                 source: params.source ?? "all",
-                damage: params.damage ?? "all",
                 minYear: params.minYear ? String(params.minYear) : "",
                 maxYear: params.maxYear ? String(params.maxYear) : "",
                 maxMileageKm: params.maxMileageKm ? String(params.maxMileageKm) : "",

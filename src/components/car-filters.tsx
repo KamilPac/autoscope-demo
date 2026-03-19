@@ -6,24 +6,12 @@ type CarFiltersProps = {
     q: string;
     make: string;
     source: string;
-    damage: string;
     minYear: string;
     maxYear: string;
     maxMileageKm: string;
     sort: string;
   };
 };
-
-const damageOptions = [
-  { value: "all", label: "All damage" },
-  { value: "front_end", label: "Front end" },
-  { value: "rear_end", label: "Rear end" },
-  { value: "side", label: "Side" },
-  { value: "hail", label: "Hail" },
-  { value: "mechanical", label: "Mechanical" },
-  { value: "rollover", label: "Rollover" },
-  { value: "minor_dent_scratches", label: "Minor dent / scratches" },
-];
 
 const makeOptions = ["all", ...new Set(CARS_DATA.map((item) => item.make).sort())];
 
@@ -77,21 +65,6 @@ export function CarFilters({ initialValues }: CarFiltersProps) {
             <select id="source" className="input-base" name="source" defaultValue={initialValues.source}>
               <option value="all">All sources</option>
               <option value="marketcheck">MarketCheck</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-[130px_minmax(0,1fr)] border-b border-[var(--line)] text-sm">
-          <label className="border-r border-[var(--line)] bg-slate-50 px-3 py-3 font-medium text-slate-700" htmlFor="damage">
-            Damage
-          </label>
-          <div className="px-2 py-2">
-            <select id="damage" className="input-base" name="damage" defaultValue={initialValues.damage}>
-              {damageOptions.map((damage) => (
-                <option key={damage.value} value={damage.value}>
-                  {damage.label}
-                </option>
-              ))}
             </select>
           </div>
         </div>

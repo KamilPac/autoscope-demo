@@ -49,10 +49,6 @@ export function filterCars(cars: CarItem[], query: CarSearchQuery) {
         return false;
       }
 
-      if (query.damage && query.damage !== "all" && car.damage !== query.damage) {
-        return false;
-      }
-
       if (query.minYear && car.year < query.minYear) {
         return false;
       }
