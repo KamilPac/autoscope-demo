@@ -1,36 +1,101 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## AutoScope Demo
+
+Frontend demo for searching cars from US auction sources with integration-ready architecture.
+
+The app supports two modes:
+- `demo` (default): local mocked data.
+- `live`: fetches data from external provider endpoint (you configure URL + API key).
 
 ## Getting Started
 
-First, run the development server:
+1. Copy env template:
+
+```bash
+cp .env.example .env.local
+```
+
+2. Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## API endpoint
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Cars search endpoint:
 
-## Learn More
+`GET /api/cars`
 
-To learn more about Next.js, take a look at the following resources:
+Supported query params:
+- `q`
+- `make`
+- `source` (`all` | `marketcheck`)
+- `damage`
+- `minYear`
+- `maxYear`
+- `maxMileageKm`
+- `sort` (`ending_soon` | `newest` | `price_low` | `price_high`)
+- `page`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Bulk import endpoint for automation:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`POST /api/lots/import-bulk`
 
-## Deploy on Vercel
+Payload:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```json
+{
+	"lots": [
+		{
+			"id": "marketcheck-12345678",
+			"source": "marketcheck",
+			"lotNumber": "12345678",
+			"vin": "UNKNOWNVIN0000000",
+			"year": 2021,
+			"make": "Toyota",
+			"model": "Camry",
+			"trim": "SE",
+			"engine": "Not provided",
+			"drivetrain": "Not provided",
+			"transmission": "AT",
+			"mileageKm": 0,
+			"location": "MarketCheck",
+			"damage": "normal_wear",
+			"titleStatus": "Imported via Playwright",
+			"sellerType": "Unknown",
+			"runAndDrive": false,
+			"hasKeys": false,
+			"estimateMinUsd": 0,
+			"estimateMaxUsd": 0,
+			"currentBidUsd": 0,
+			"imageUrl": "https://..."
+		}
+	]
+}
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Live mode configuration
+
+Set in `.env.local`:
+
+```bash
+AUCTION_DATA_MODE=live
+MARKETCHECK_PROVIDER_URL=https://api.marketcheck.com/v2/search/car/active
+MARKETCHECK_PROVIDER_API_KEY=...
+```
+
+Important:
+- Keep integrations compliant with source platform terms.
+- Recommended approach is official/partner APIs or licensed data feeds.
+
+Search cache:
+- Search results are cached locally in `data/search-cache.json`.
+- If the same filter/query is requested again, app reuses local cache instead of calling MarketCheck API.
+
+## Next steps
+
+- Add provider-specific payload mapping in `src/lib/server/http-provider.ts`.
+- Add authenticated backend proxy for production feeds.
+- Move details page from mock-only to provider-backed lookup by `id`/`lot`.
