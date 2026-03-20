@@ -54,6 +54,16 @@ export default async function UserPanelPage() {
             <p className="mt-1 text-sm text-slate-600">Simple profile settings used in the app header and panel.</p>
             <AccountSettingsForm initialDisplayName={profile?.displayName ?? ""} roleLabel={roleLabel} />
           </section>
+
+          {role === "admin" ? (
+            <section className="mt-8 rounded-xl border border-slate-200 bg-white p-4">
+              <h2 className="font-heading text-xl font-semibold text-slate-900">Admin cars panel</h2>
+              <p className="mt-1 text-sm text-slate-600">Open a dedicated admin view to browse and delete single cars.</p>
+              <Link className="btn-primary mt-4 inline-flex" href="/panel/admin-cars">
+                Open admin cars panel
+              </Link>
+            </section>
+          ) : null}
         </section>
       </main>
     </div>

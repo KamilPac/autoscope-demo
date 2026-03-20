@@ -75,3 +75,15 @@ export async function addImportedLots(items: CarItem[]) {
 
   await writePayload(payload);
 }
+
+export async function deleteImportedLotById(id: string) {
+  const payload = await readPayload();
+  const filtered = payload.items.filter((item) => item.id !== id);
+
+  if (filtered.length === payload.items.length) {
+    return false;
+  }
+
+  await writePayload({ items: filtered });
+  return true;
+}

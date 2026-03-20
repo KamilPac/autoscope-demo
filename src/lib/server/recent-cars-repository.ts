@@ -66,3 +66,20 @@ export async function findRecentCarById(id: string) {
   const payload = await readPayload();
   return payload.items.find((item) => item.id === id);
 }
+
+export async function getRecentCars() {
+  const payload = await readPayload();
+  return payload.items;
+}
+
+export async function deleteRecentCarById(id: string) {
+  const payload = await readPayload();
+  const filtered = payload.items.filter((item) => item.id !== id);
+
+  if (filtered.length === payload.items.length) {
+    return false;
+  }
+
+  await writePayload({ items: filtered });
+  return true;
+}

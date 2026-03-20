@@ -45,6 +45,11 @@ In `/panel` user can:
 - set display name,
 - change account password.
 
+Admin extras in `/panel`:
+- open dedicated panel `/panel/admin-cars`,
+- browse saved cars stored locally,
+- delete a single car by id from local stores (cache/import/recent).
+
 ## API endpoint
 
 Cars search endpoint:
