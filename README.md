@@ -22,6 +22,29 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## User login and panel
+
+- Sign in page: `/login`
+- User panel: `/panel`
+- Protected pages (require login): `/cars`, `/import-lot`, `/panel`
+
+Demo credentials are set by env vars:
+
+```bash
+DEMO_AUTH_USERNAME=admin
+DEMO_AUTH_PASSWORD=admin123
+DEMO_USER_USERNAME=user
+DEMO_USER_PASSWORD=user123
+```
+
+Roles:
+- `admin`: full access (search + import)
+- `user`: access to search and panel (no import)
+
+In `/panel` user can:
+- set display name,
+- change account password.
+
 ## API endpoint
 
 Cars search endpoint:

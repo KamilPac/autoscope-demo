@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 type ImportedLotPreview = {
   source: "marketcheck";
@@ -18,10 +18,35 @@ type ImportResult = {
   lot?: ImportedLotPreview;
 };
 
+type AuthMeResponse = {
+  user: string | null;
+  role?: "admin" | "user" | null;
+  profile?: {
+    displayName?: string;
+  } | null;
+};
+
 export default function ImportLotPage() {
+  const [accountLabel, setAccountLabel] = useState<string | null>(null);
+  const [roleLabel, setRoleLabel] = useState<string | null>(null);
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const response = await fetch("/api/auth/me", { cache: "no-store" });
+        const payload = (await response.json()) as AuthMeResponse;
+        const label = payload.profile?.displayName?.trim() || payload.user;
+        setAccountLabel(label ?? null);
+        setRoleLabel(payload.role === "admin" ? "Admin" : payload.role === "user" ? "User" : null);
+      } catch {
+        setAccountLabel(null);
+        setRoleLabel(null);
+      }
+    })();
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,7 +85,12 @@ export default function ImportLotPage() {
     <div className="page-shell min-h-screen py-8">
       <main className="container-wide max-w-3xl space-y-6">
         <section className="card-surface p-6 sm:p-8">
-          <h1 className="font-heading text-3xl font-bold text-slate-900">Import lot by URL</h1>
+          <div className="mb-4 flex items-center justify-between">
+            <h1 className="font-heading text-3xl font-bold text-slate-900">Import lot by URL</h1>
+            <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" href="/panel">
+              {accountLabel ?? "Account"}{roleLabel ? ` (${roleLabel})` : ""}
+            </Link>
+          </div>
           <p className="mt-2 text-slate-600">
             Paste a listing URL. Imported record will appear in search results.
           </p>

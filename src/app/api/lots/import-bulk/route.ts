@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { AUTH_ROLE_COOKIE_NAME } from "@/lib/auth-constants";
 import { CarItem } from "@/lib/types";
 import { addImportedLots } from "@/lib/server/imported-lots-repository";
 
@@ -23,6 +24,10 @@ function isValidLot(item: unknown): item is CarItem {
 }
 
 export async function POST(request: NextRequest) {
+  if (request.cookies.get(AUTH_ROLE_COOKIE_NAME)?.value !== "admin") {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  }
+
   try {
     const body = (await request.json()) as BulkImportPayload;
     const inputLots = Array.isArray(body?.lots) ? body.lots : [];

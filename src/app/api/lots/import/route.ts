@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { AUTH_ROLE_COOKIE_NAME } from "@/lib/auth-constants";
 import { addImportedLot } from "@/lib/server/imported-lots-repository";
 import { importLotFromUrl } from "@/lib/server/lot-url-importer";
 
 export async function POST(request: NextRequest) {
+  if (request.cookies.get(AUTH_ROLE_COOKIE_NAME)?.value !== "admin") {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  }
+
   try {
     const body = (await request.json()) as { url?: string };
 

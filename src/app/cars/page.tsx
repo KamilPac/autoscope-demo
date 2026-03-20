@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { CarCard } from "@/components/car-card";
 import { CarFilters } from "@/components/car-filters";
 import { searchCars } from "@/lib/server/auction-search-service";
 import { getAuctionRuntimeState } from "@/lib/server/runtime-state";
 import { buildQueryString, parseSearchParams } from "@/lib/server/search-params";
+import { getCurrentProfile, getCurrentUser } from "@/lib/server/auth";
 
 type SearchParams = {
   [key: string]: string | string[] | undefined;
@@ -14,6 +16,14 @@ export default async function CarsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect("/login?next=%2Fcars");
+  }
+
+  const profile = await getCurrentProfile();
+  const shownName = profile?.displayName?.trim() || user || "User";
   const params = parseSearchParams(await searchParams);
   const result = await searchCars(params);
   const runtimeState = getAuctionRuntimeState();
@@ -30,6 +40,9 @@ export default async function CarsPage({
           </div>
 
           <div className="flex gap-2">
+            <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" href="/panel">
+              {shownName}
+            </Link>
             <Link className="btn-primary !bg-slate-700 hover:!bg-slate-900" href="/import-lot">
               Import lot
             </Link>

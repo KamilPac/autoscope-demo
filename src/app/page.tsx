@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { getCurrentUser } from "@/lib/server/auth";
 
-export default function Home() {
+export default async function Home() {
+  const user = await getCurrentUser();
+
   return (
     <div className="page-shell min-h-screen py-10 lg:py-16">
       <main className="container-wide grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-stretch">
@@ -22,6 +25,9 @@ export default function Home() {
           <div className="mt-8 flex flex-wrap gap-3">
             <Link className="btn-primary" href="/cars">
               Open vehicle search
+            </Link>
+            <Link className="btn-primary !bg-indigo-700 hover:!bg-indigo-900" href={user ? "/panel" : "/login"}>
+              {user ? "Open user panel" : "Sign in"}
             </Link>
             <Link className="btn-primary !bg-slate-700 hover:!bg-slate-900" href="/import-lot">
               Import lot by URL
