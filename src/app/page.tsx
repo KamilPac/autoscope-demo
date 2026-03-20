@@ -1,13 +1,29 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/server/auth";
 
-export default async function Home() {
+type SearchParams = {
+  [key: string]: string | string[] | undefined;
+};
+
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function Home({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const params = await searchParams;
+  const logoutFlag = firstParam(params.logout) === "1";
   const user = await getCurrentUser();
 
   return (
     <div className="page-shell min-h-screen py-10 lg:py-16">
       <main className="container-wide grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-stretch">
         <section className="card-surface p-7 sm:p-10">
+          {logoutFlag ? (
+            <p className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+              You have been signed out successfully.
+            </p>
+          ) : null}
+
           <p className="mb-4 inline-flex rounded-full bg-teal-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-teal-800">
             Local Demo
           </p>

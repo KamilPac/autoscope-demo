@@ -17,7 +17,7 @@ export function middleware(request: NextRequest) {
   }
 
   if (pathname === "/login" && isLoggedIn) {
-    return NextResponse.redirect(new URL("/panel", request.url));
+    return NextResponse.redirect(new URL("/cars", request.url));
   }
 
   const adminOnlyPath = pathname === "/import-lot" || pathname.startsWith("/import-lot/");

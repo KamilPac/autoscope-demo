@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { AUTH_COOKIE_NAME } from "@/lib/auth-constants";
+import { redirect } from "next/navigation";
+import { AUTH_COOKIE_NAME, AUTH_ROLE_COOKIE_NAME, PROFILE_COOKIE_NAME } from "@/lib/auth-constants";
 import { getCurrentProfile, getCurrentRole, getCurrentUser } from "@/lib/server/auth";
 import { AccountSettingsForm } from "@/components/account-settings-form";
 
@@ -8,6 +9,9 @@ async function handleLogout() {
   "use server";
   const store = await cookies();
   store.delete(AUTH_COOKIE_NAME);
+  store.delete(AUTH_ROLE_COOKIE_NAME);
+  store.delete(PROFILE_COOKIE_NAME);
+  redirect("/?logout=1");
 }
 
 export default async function UserPanelPage() {

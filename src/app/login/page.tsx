@@ -12,7 +12,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const nextUrl = useMemo(() => searchParams.get("next") || "/panel", [searchParams]);
+  const nextUrl = useMemo(() => searchParams.get("next") || "/cars", [searchParams]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
