@@ -13,7 +13,56 @@ type CarFiltersProps = {
   };
 };
 
-const makeOptions = ["all", ...new Set(CARS_DATA.map((item) => item.make).sort())];
+const POPULAR_MAKES = [
+  "Acura",
+  "Alfa Romeo",
+  "Audi",
+  "BMW",
+  "Buick",
+  "Cadillac",
+  "Chevrolet",
+  "Chrysler",
+  "Dodge",
+  "FIAT",
+  "Ford",
+  "Genesis",
+  "GMC",
+  "Honda",
+  "Hyundai",
+  "Infiniti",
+  "Jaguar",
+  "Jeep",
+  "Kia",
+  "Land Rover",
+  "Lexus",
+  "Lincoln",
+  "Maserati",
+  "Mazda",
+  "Mercedes-Benz",
+  "Mini",
+  "Mitsubishi",
+  "Nissan",
+  "Porsche",
+  "Ram",
+  "Subaru",
+  "Tesla",
+  "Toyota",
+  "Volkswagen",
+  "Volvo",
+];
+
+const makeOptions = [
+  "all",
+  ...new Set([...POPULAR_MAKES, ...CARS_DATA.map((item) => item.make)]).values(),
+].sort((a, b) => {
+  if (a === "all") {
+    return -1;
+  }
+  if (b === "all") {
+    return 1;
+  }
+  return a.localeCompare(b);
+});
 
 export function CarFilters({ initialValues }: CarFiltersProps) {
   return (

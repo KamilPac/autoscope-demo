@@ -1,26 +1,18 @@
 import Link from "next/link";
-import Image from "next/image";
 import { findCarById } from "@/lib/server/auction-search-service";
 import { toDisplayImageUrl } from "@/lib/image-url";
+import { filterVehicleImages } from "@/lib/vehicle-image-filter";
+import { CarImageViewer } from "@/components/car-image-viewer";
+import { parseVisibleIndexesParam } from "@/lib/client-image-similarity";
 
 type PageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ vin?: string; img?: string; back?: string }>;
+  searchParams: Promise<{ vin?: string; img?: string; back?: string; vis?: string }>;
 };
-
-function clampIndex(raw: string | undefined, max: number) {
-  const parsed = Number(raw ?? "0");
-
-  if (!Number.isFinite(parsed)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.min(max, Math.floor(parsed)));
-}
 
 export default async function CarImageViewerPage({ params, searchParams }: PageProps) {
   const { id } = await params;
-  const { vin, img, back } = await searchParams;
+  const { vin, img, back, vis } = await searchParams;
   const car = await findCarById(id, { vin });
 
   if (!car) {
@@ -36,77 +28,22 @@ export default async function CarImageViewerPage({ params, searchParams }: PageP
     );
   }
 
-  const gallery = (car.imageUrls && car.imageUrls.length > 0 ? car.imageUrls : [car.imageUrl]).map(toDisplayImageUrl);
-  const selectedIdx = clampIndex(img, gallery.length - 1);
-  const current = gallery[selectedIdx] ?? toDisplayImageUrl(car.imageUrl);
-  const prevIdx = selectedIdx > 0 ? selectedIdx - 1 : gallery.length - 1;
-  const nextIdx = selectedIdx < gallery.length - 1 ? selectedIdx + 1 : 0;
-
-  const shared = {
-    vin: car.vin,
-    ...(back ? { back } : {}),
-  };
-
-  const detailsHref = `/cars/${encodeURIComponent(car.id)}?${new URLSearchParams({
-    ...shared,
-    img: String(selectedIdx),
-  }).toString()}`;
-
-  const prevHref = `/cars/${encodeURIComponent(car.id)}/viewer?${new URLSearchParams({
-    ...shared,
-    img: String(prevIdx),
-  }).toString()}`;
-
-  const nextHref = `/cars/${encodeURIComponent(car.id)}/viewer?${new URLSearchParams({
-    ...shared,
-    img: String(nextIdx),
-  }).toString()}`;
+  const gallery = filterVehicleImages(car.imageUrls, car).map(toDisplayImageUrl);
+  const rawSelected = Number(img ?? "0");
+  const selectedIdx = Number.isFinite(rawSelected) ? Math.max(0, Math.floor(rawSelected)) : 0;
+  const initialVisibleIndexes = parseVisibleIndexesParam(vis, gallery.length - 1);
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <main className="relative mx-auto flex min-h-screen w-full max-w-[1800px] items-center justify-center px-4 py-6">
-        <div className="absolute top-4 left-4 z-20 flex gap-2">
-          <Link className="rounded-lg bg-white/15 px-4 py-2 text-sm hover:bg-white/25" href={detailsHref}>
-            Back to details
-          </Link>
-        </div>
-
-        {gallery.length > 1 ? (
-          <Link
-            aria-label="Previous image"
-            className="absolute left-4 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-black/45 text-2xl hover:bg-black/65"
-            href={prevHref}
-          >
-            <span aria-hidden>‹</span>
-          </Link>
-        ) : null}
-
-        <div className="relative h-[90vh] w-[95vw] overflow-hidden rounded-xl border border-white/20 bg-black">
-          <Image
-            className="object-contain"
-            src={current}
-            alt={`${car.make} ${car.model} image ${selectedIdx + 1}`}
-            fill
-            unoptimized
-            sizes="95vw"
-            priority
-          />
-        </div>
-
-        {gallery.length > 1 ? (
-          <Link
-            aria-label="Next image"
-            className="absolute right-4 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-black/45 text-2xl hover:bg-black/65"
-            href={nextHref}
-          >
-            <span aria-hidden>›</span>
-          </Link>
-        ) : null}
-
-        <div className="absolute right-4 bottom-4 rounded-md bg-black/55 px-3 py-2 text-xs tracking-[0.08em] text-white/85">
-          {selectedIdx + 1} / {gallery.length}
-        </div>
-      </main>
-    </div>
+    <CarImageViewer
+      carId={car.id}
+      vin={car.vin}
+      make={car.make}
+      model={car.model}
+      back={back}
+      initialSelectedIndex={selectedIdx}
+      gallery={gallery}
+      fallbackImage={toDisplayImageUrl(car.imageUrl)}
+      initialVisibleIndexes={initialVisibleIndexes}
+    />
   );
 }

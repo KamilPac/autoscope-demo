@@ -38,6 +38,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Sea
             source, year, mileage, and inspect every lot detail on a dedicated page.
           </p>
 
+          <p className="mt-4 inline-flex rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+            Logged in as: <strong className="ml-1">{user ?? "guest"}</strong>
+          </p>
+
           <div className="mt-8 flex flex-wrap gap-3">
             <Link className="btn-primary" href="/cars">
               Open vehicle search

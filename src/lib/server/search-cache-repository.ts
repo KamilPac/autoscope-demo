@@ -37,6 +37,7 @@ export type SearchCacheCarItem = {
   vin: string;
   lotNumber: string;
   imageUrl: string;
+  imageUrls?: string[];
   occurrences: number;
 };
 
@@ -143,6 +144,7 @@ export async function listCachedCars(): Promise<SearchCacheCarItem[]> {
         vin: car.vin,
         lotNumber: car.lotNumber,
         imageUrl: car.imageUrl,
+        imageUrls: car.imageUrls,
         occurrences: 1,
       });
     }

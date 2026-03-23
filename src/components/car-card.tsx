@@ -1,7 +1,8 @@
 import Link from "next/link";
-import Image from "next/image";
 import { CarItem } from "@/lib/types";
 import { toDisplayImageUrl } from "@/lib/image-url";
+import { filterVehicleImages } from "@/lib/vehicle-image-filter";
+import { CarCardImage } from "@/components/car-card-image";
 
 function formatUsd(value: number) {
   return new Intl.NumberFormat("en-US", {
@@ -14,10 +15,13 @@ function formatUsd(value: number) {
 type CarCardProps = {
   car: CarItem;
   returnQuery?: string;
+  userMaxBid?: number;
 };
 
-export function CarCard({ car, returnQuery }: CarCardProps) {
-  const imageUrl = toDisplayImageUrl(car.imageUrl);
+export function CarCard({ car, returnQuery, userMaxBid }: CarCardProps) {
+  const gallery = filterVehicleImages(car.imageUrls, car).map(toDisplayImageUrl);
+  const imageUrl = gallery[0] ?? toDisplayImageUrl(car.imageUrl);
+  const effectiveCurrentBid = typeof userMaxBid === "number" ? userMaxBid : car.currentBidUsd;
   const detailParams = new URLSearchParams({
     vin: car.vin,
     ...(returnQuery ? { back: returnQuery } : {}),
@@ -25,15 +29,8 @@ export function CarCard({ car, returnQuery }: CarCardProps) {
 
   return (
     <article className="card-surface overflow-hidden">
-      <div className="relative h-44 w-full bg-slate-200">
-        <Image
-          className="object-cover"
-          src={imageUrl}
-          alt={`${car.make} ${car.model}`}
-          fill
-          unoptimized
-          sizes="(max-width: 768px) 100vw, 33vw"
-        />
+      <div className="relative">
+        <CarCardImage carId={car.id} make={car.make} model={car.model} gallery={gallery} fallbackImage={imageUrl} />
         <span className="badge absolute top-3 left-3">{car.source.toUpperCase()}</span>
       </div>
 
@@ -55,10 +52,11 @@ export function CarCard({ car, returnQuery }: CarCardProps) {
 
         <div className="rounded-xl bg-slate-50 p-3 text-sm">
           <p className="text-slate-500">Current bid</p>
-          <p className="text-xl font-semibold text-slate-900">{formatUsd(car.currentBidUsd)}</p>
+          <p className="text-xl font-semibold text-slate-900">{formatUsd(effectiveCurrentBid)}</p>
           <p className="text-slate-500">
             Estimate {formatUsd(car.estimateMinUsd)} - {formatUsd(car.estimateMaxUsd)}
           </p>
+          {typeof userMaxBid === "number" ? <p className="mt-1 text-xs font-semibold text-teal-700">Your max bid: {formatUsd(userMaxBid)}</p> : null}
         </div>
 
         <Link

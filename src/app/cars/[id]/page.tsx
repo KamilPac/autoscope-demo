@@ -1,7 +1,13 @@
 import Link from "next/link";
-import Image from "next/image";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { findCarById } from "@/lib/server/auction-search-service";
 import { toDisplayImageUrl } from "@/lib/image-url";
+import { filterVehicleImages } from "@/lib/vehicle-image-filter";
+import { CarImageGallery } from "@/components/car-image-gallery";
+import { getCurrentUser } from "@/lib/server/auth";
+import { addWatchedCar, isCarWatched, removeWatchedCar } from "@/lib/server/watchlist-repository";
+import { getUserMaxBid, setUserMaxBid } from "@/lib/server/max-bid-repository";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -16,10 +22,13 @@ function formatUsd(value: number) {
   }).format(value);
 }
 
+const BID_STEP_OPTIONS_USD = [100, 500, 1000] as const;
+
 export default async function CarDetailsPage({ params, searchParams }: PageProps) {
   const { id } = await params;
   const { vin, img, back } = await searchParams;
   const car = await findCarById(id, { vin });
+  const currentUser = await getCurrentUser();
   const backHref = back ? `/cars?${back}` : "/cars";
 
   if (!car) {
@@ -42,14 +51,83 @@ export default async function CarDetailsPage({ params, searchParams }: PageProps
     );
   }
 
-  const gallery = (car.imageUrls && car.imageUrls.length > 0 ? car.imageUrls : [car.imageUrl]).map(toDisplayImageUrl);
+  const gallery = filterVehicleImages(car.imageUrls, car).map(toDisplayImageUrl);
   const selectedIdx = Math.max(0, Math.min(gallery.length - 1, Number(img ?? "0") || 0));
   const imageUrl = gallery[selectedIdx] ?? toDisplayImageUrl(car.imageUrl);
-  const viewerHref = `/cars/${encodeURIComponent(car.id)}/viewer?${new URLSearchParams({
-    vin: car.vin,
-    img: String(selectedIdx),
-    ...(back ? { back } : {}),
-  }).toString()}`;
+  const isWatched = currentUser ? await isCarWatched(currentUser, car.id) : false;
+  const userMaxBid = currentUser ? await getUserMaxBid(currentUser, car.id) : null;
+  const effectiveMaxBid = userMaxBid ?? car.currentBidUsd;
+  const effectiveCurrentBid = userMaxBid ?? car.currentBidUsd;
+
+  async function handleWatch() {
+    "use server";
+
+    const user = await getCurrentUser();
+    if (!user) {
+      redirect(`/login?next=${encodeURIComponent(`/cars/${encodeURIComponent(car.id)}`)}`);
+    }
+
+    await addWatchedCar(user, car);
+    revalidatePath("/panel");
+    revalidatePath(`/cars/${encodeURIComponent(car.id)}`);
+  }
+
+  async function handleUnwatch() {
+    "use server";
+
+    const user = await getCurrentUser();
+    if (!user) {
+      redirect(`/login?next=${encodeURIComponent(`/cars/${encodeURIComponent(car.id)}`)}`);
+    }
+
+    await removeWatchedCar(user, car.id);
+    revalidatePath("/panel");
+    revalidatePath(`/cars/${encodeURIComponent(car.id)}`);
+  }
+
+  async function handleAdjustMaxBid(formData: FormData) {
+    "use server";
+
+    const user = await getCurrentUser();
+    if (!user) {
+      redirect(`/login?next=${encodeURIComponent(`/cars/${encodeURIComponent(car.id)}`)}`);
+    }
+
+    const direction = String(formData.get("direction") ?? "").trim();
+    const requestedStep = Number(formData.get("step") ?? BID_STEP_OPTIONS_USD[0]);
+    const step = BID_STEP_OPTIONS_USD.includes(requestedStep as (typeof BID_STEP_OPTIONS_USD)[number])
+      ? requestedStep
+      : BID_STEP_OPTIONS_USD[0];
+    const current = (await getUserMaxBid(user, car.id)) ?? car.currentBidUsd;
+    const delta = direction === "minus" ? -step : step;
+    const next = Math.max(0, current + delta);
+
+    await setUserMaxBid(user, car.id, next, {
+      ...car,
+      currentBidUsd: next,
+    });
+    revalidatePath(`/cars/${encodeURIComponent(car.id)}`);
+    revalidatePath("/panel");
+  }
+
+  async function handleSetMaxBid(formData: FormData) {
+    "use server";
+
+    const user = await getCurrentUser();
+    if (!user) {
+      redirect(`/login?next=${encodeURIComponent(`/cars/${encodeURIComponent(car.id)}`)}`);
+    }
+
+    const requestedAmount = Number(formData.get("maxBid") ?? "0");
+    const next = Math.max(0, Number.isFinite(requestedAmount) ? Math.round(requestedAmount) : car.currentBidUsd);
+
+    await setUserMaxBid(user, car.id, next, {
+      ...car,
+      currentBidUsd: next,
+    });
+    revalidatePath(`/cars/${encodeURIComponent(car.id)}`);
+    revalidatePath("/panel");
+  }
 
   return (
     <div className="page-shell min-h-screen py-8">
@@ -60,54 +138,16 @@ export default async function CarDetailsPage({ params, searchParams }: PageProps
 
         <section className="card-surface grid overflow-hidden lg:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-3 bg-slate-100 p-3">
-            <Link
-              className="group block"
-              href={viewerHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Open full-size gallery in new tab"
-            >
-              <div className="relative min-h-72 overflow-hidden rounded-xl bg-slate-200">
-                <Image
-                  className="object-cover transition duration-300 group-hover:scale-[1.01]"
-                  src={imageUrl}
-                  alt={`${car.make} ${car.model}`}
-                  fill
-                  unoptimized
-                  sizes="(max-width: 1024px) 100vw, 55vw"
-                />
-              </div>
-              <p className="mt-2 text-xs font-medium uppercase tracking-[0.12em] text-slate-500">
-                Click image to open full-size viewer
-              </p>
-            </Link>
-
-            {gallery.length > 1 ? (
-              <div className="grid grid-cols-5 gap-2 sm:grid-cols-6 lg:grid-cols-5">
-                {gallery.slice(0, 18).map((photo, index) => (
-                  <Link
-                    key={`${car.id}-img-${index}`}
-                    className={`relative block aspect-square overflow-hidden rounded-lg border ${
-                      index === selectedIdx ? "border-teal-500" : "border-slate-300"
-                    }`}
-                    href={`/cars/${encodeURIComponent(car.id)}?${new URLSearchParams({
-                      vin: car.vin,
-                      img: String(index),
-                      ...(back ? { back } : {}),
-                    }).toString()}`}
-                  >
-                    <Image
-                      className="object-cover"
-                      src={photo}
-                      alt={`${car.make} ${car.model} photo ${index + 1}`}
-                      fill
-                      unoptimized
-                      sizes="140px"
-                    />
-                  </Link>
-                ))}
-              </div>
-            ) : null}
+            <CarImageGallery
+              carId={car.id}
+              vin={car.vin}
+              make={car.make}
+              model={car.model}
+              back={back}
+              initialSelectedIndex={selectedIdx}
+              gallery={gallery}
+              fallbackImage={imageUrl}
+            />
           </div>
 
           <div className="space-y-6 p-6 sm:p-8">
@@ -117,6 +157,27 @@ export default async function CarDetailsPage({ params, searchParams }: PageProps
                 {car.year} {car.make} {car.model}
               </h1>
               <p className="text-lg text-slate-600">{car.trim}</p>
+              <div className="mt-4">
+                {isWatched ? (
+                  <form action={handleUnwatch}>
+                    <button
+                      className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100"
+                      type="submit"
+                    >
+                      Remove from observed
+                    </button>
+                  </form>
+                ) : (
+                  <form action={handleWatch}>
+                    <button
+                      className="rounded-lg border border-teal-300 bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-900 hover:bg-teal-100"
+                      type="submit"
+                    >
+                      Observe this car
+                    </button>
+                  </form>
+                )}
+              </div>
             </header>
 
             <div className="grid gap-3 text-sm sm:grid-cols-2">
@@ -160,10 +221,61 @@ export default async function CarDetailsPage({ params, searchParams }: PageProps
 
             <div className="rounded-xl bg-slate-50 p-4">
               <p className="text-sm text-slate-500">Current bid</p>
-              <p className="text-3xl font-bold text-slate-900">{formatUsd(car.currentBidUsd)}</p>
+              <p className="text-3xl font-bold text-slate-900">{formatUsd(effectiveCurrentBid)}</p>
               <p className="text-sm text-slate-600">
                 Estimate range {formatUsd(car.estimateMinUsd)} - {formatUsd(car.estimateMaxUsd)}
               </p>
+
+              <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Your max bid</p>
+                <p className="mt-1 text-2xl font-bold text-slate-900">{formatUsd(effectiveMaxBid)}</p>
+                <p className="mt-1 text-xs text-slate-500">Use +/- with selected step or set exact amount.</p>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {BID_STEP_OPTIONS_USD.map((step) => (
+                    <form action={handleAdjustMaxBid} className="flex items-center gap-1" key={`step-${step}`}>
+                      <input name="step" type="hidden" value={String(step)} />
+                      <button
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                        name="direction"
+                        value="minus"
+                        type="submit"
+                      >
+                        -{formatUsd(step)}
+                      </button>
+                      <button
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                        name="direction"
+                        value="plus"
+                        type="submit"
+                      >
+                        +{formatUsd(step)}
+                      </button>
+                    </form>
+                  ))}
+                </div>
+
+                <form action={handleSetMaxBid} className="mt-3 flex flex-wrap items-center gap-2">
+                  <label className="text-xs font-medium text-slate-600" htmlFor="maxBidInput">
+                    Set amount
+                  </label>
+                  <input
+                    className="w-40 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900"
+                    defaultValue={String(effectiveMaxBid)}
+                    id="maxBidInput"
+                    min="0"
+                    name="maxBid"
+                    step="100"
+                    type="number"
+                  />
+                  <button
+                    className="rounded-lg border border-teal-300 bg-teal-50 px-3 py-1.5 text-sm font-semibold text-teal-900 hover:bg-teal-100"
+                    type="submit"
+                  >
+                    Save amount
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
         </section>

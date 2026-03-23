@@ -6,6 +6,7 @@ import { searchCars } from "@/lib/server/auction-search-service";
 import { getAuctionRuntimeState } from "@/lib/server/runtime-state";
 import { buildQueryString, parseSearchParams } from "@/lib/server/search-params";
 import { getCurrentProfile, getCurrentUser } from "@/lib/server/auth";
+import { getUserMaxBidEntries } from "@/lib/server/max-bid-repository";
 
 type SearchParams = {
   [key: string]: string | string[] | undefined;
@@ -26,6 +27,8 @@ export default async function CarsPage({
   const shownName = profile?.displayName?.trim() || user || "User";
   const params = parseSearchParams(await searchParams);
   const result = await searchCars(params);
+  const bidEntries = await getUserMaxBidEntries(user);
+  const maxBidByCarId = new Map(bidEntries.map((entry) => [entry.carId, entry.amountUsd]));
   const runtimeState = getAuctionRuntimeState();
   const returnQuery = buildQueryString(params, result.page);
 
@@ -88,7 +91,7 @@ export default async function CarsPage({
             {result.items.length > 0 ? (
               <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {result.items.map((car) => (
-                  <CarCard key={car.id} car={car} returnQuery={returnQuery} />
+                  <CarCard key={car.id} car={car} returnQuery={returnQuery} userMaxBid={maxBidByCarId.get(car.id)} />
                 ))}
               </section>
             ) : (

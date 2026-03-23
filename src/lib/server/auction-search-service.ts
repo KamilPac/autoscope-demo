@@ -6,6 +6,7 @@ import { getImportedLots } from "@/lib/server/imported-lots-repository";
 import { MockAuctionProvider } from "@/lib/server/mock-provider";
 import { findRecentCarById, rememberRecentCars } from "@/lib/server/recent-cars-repository";
 import { getCachedSearchResults, setCachedSearchResults } from "@/lib/server/search-cache-repository";
+import { normalizeCarImages } from "@/lib/vehicle-image-filter";
 
 const CAR_LOOKUP_CACHE_LIMIT = 800;
 const recentCarsCache = new Map<string, CarItem>();
@@ -94,8 +95,10 @@ export async function searchCars(query: CarSearchQuery) {
         )
       ).flat();
 
+  const normalizedProviderItems = providerItems.map(normalizeCarImages);
+
   if (!cachedItems) {
-    await setCachedSearchResults(cacheKey, providerItems);
+    await setCachedSearchResults(cacheKey, normalizedProviderItems);
   }
 
   const importedLots = await getImportedLots();
@@ -106,9 +109,9 @@ export async function searchCars(query: CarSearchQuery) {
     }
 
     return item.source === query.source;
-  });
+  }).map(normalizeCarImages);
 
-  const merged = deduplicateCars([...importedFiltered, ...providerItems]);
+  const merged = deduplicateCars([...importedFiltered, ...normalizedProviderItems]);
   rememberCars(merged);
   await rememberRecentCars(merged);
 
@@ -119,13 +122,13 @@ export async function findCarById(id: string, hint?: { vin?: string }): Promise<
   const cached = recentCarsCache.get(id);
 
   if (cached) {
-    return cached;
+    return normalizeCarImages(cached);
   }
 
   const recentMatch = await findRecentCarById(id);
   if (recentMatch) {
     recentCarsCache.set(recentMatch.id, recentMatch);
-    return recentMatch;
+    return normalizeCarImages(recentMatch);
   }
 
   const importedLots = await getImportedLots();
@@ -133,7 +136,7 @@ export async function findCarById(id: string, hint?: { vin?: string }): Promise<
 
   if (importedMatch) {
     recentCarsCache.set(importedMatch.id, importedMatch);
-    return importedMatch;
+    return normalizeCarImages(importedMatch);
   }
 
   const source: CarSearchQuery["source"] = "all";
@@ -155,7 +158,7 @@ export async function findCarById(id: string, hint?: { vin?: string }): Promise<
       }),
     );
 
-    const merged = deduplicateCars([...chunks.flat()]);
+    const merged = deduplicateCars([...chunks.flat()]).map(normalizeCarImages);
     rememberCars(merged);
 
     const exactMatch = merged.find((item) => item.id === id);

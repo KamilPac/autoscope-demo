@@ -1,5 +1,6 @@
 import { CarItem, CarSearchQuery } from "@/lib/types";
 import { AuctionProvider } from "@/lib/server/auction-provider";
+import { filterVehicleImages } from "@/lib/vehicle-image-filter";
 
 function toNumber(value: unknown, fallback = 0) {
   const parsed = Number(value);
@@ -71,6 +72,13 @@ function normalizeIncomingItem(
   const cleanTitle = item.carfax_clean_title;
   const titleStatus =
     typeof cleanTitle === "boolean" ? (cleanTitle ? "Clean" : "Issue reported") : "Unknown";
+  const rawImageUrls = extractImageUrls(item);
+  const filteredImageUrls = filterVehicleImages(rawImageUrls, {
+    id: `${source}-${String(item.id ?? lotNumber)}`,
+    vin,
+    lotNumber,
+    imageUrl: rawImageUrls[0] ?? "",
+  });
 
   return {
     id: `${source}-${String(item.id ?? lotNumber)}`,
@@ -94,8 +102,8 @@ function normalizeIncomingItem(
     estimateMinUsd: Math.round(currentPrice * 0.95),
     estimateMaxUsd: Math.round(currentPrice * 1.1),
     currentBidUsd: currentPrice,
-    imageUrl: firstImage(item),
-    imageUrls: extractImageUrls(item),
+    imageUrl: filteredImageUrls[0] ?? firstImage(item),
+    imageUrls: filteredImageUrls,
   };
 }
 

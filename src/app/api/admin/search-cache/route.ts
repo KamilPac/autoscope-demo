@@ -4,6 +4,7 @@ import { AUTH_ROLE_COOKIE_NAME } from "@/lib/auth-constants";
 import { getImportedLots } from "@/lib/server/imported-lots-repository";
 import { getRecentCars } from "@/lib/server/recent-cars-repository";
 import { listCachedCars } from "@/lib/server/search-cache-repository";
+import { normalizeCarImages } from "@/lib/vehicle-image-filter";
 
 export async function GET() {
   const store = await cookies();
@@ -28,6 +29,7 @@ export async function GET() {
     vin: string;
     lotNumber: string;
     imageUrl: string;
+    imageUrls?: string[];
     inSearchCache: boolean;
     inImportedLots: boolean;
     inRecentCars: boolean;
@@ -43,6 +45,7 @@ export async function GET() {
       vin: car.vin,
       lotNumber: car.lotNumber,
       imageUrl: car.imageUrl,
+      imageUrls: car.imageUrls,
       inSearchCache: true,
       inImportedLots: false,
       inRecentCars: false,
@@ -56,30 +59,8 @@ export async function GET() {
       if (!existing.imageUrl) {
         existing.imageUrl = car.imageUrl;
       }
-      continue;
-    }
-
-    byId.set(car.id, {
-      id: car.id,
-      source: car.source,
-      year: car.year,
-      make: car.make,
-      model: car.model,
-      vin: car.vin,
-      lotNumber: car.lotNumber,
-      imageUrl: car.imageUrl,
-      inSearchCache: false,
-      inImportedLots: true,
-      inRecentCars: false,
-    });
-  }
-
-  for (const car of recentCars) {
-    const existing = byId.get(car.id);
-    if (existing) {
-      existing.inRecentCars = true;
-      if (!existing.imageUrl) {
-        existing.imageUrl = car.imageUrl;
+      if (!existing.imageUrls || existing.imageUrls.length === 0) {
+        existing.imageUrls = car.imageUrls;
       }
       continue;
     }
@@ -93,12 +74,75 @@ export async function GET() {
       vin: car.vin,
       lotNumber: car.lotNumber,
       imageUrl: car.imageUrl,
+      imageUrls: car.imageUrls,
+      inSearchCache: false,
+      inImportedLots: true,
+      inRecentCars: false,
+    });
+  }
+
+  for (const car of recentCars) {
+    const existing = byId.get(car.id);
+    if (existing) {
+      existing.inRecentCars = true;
+      if (!existing.imageUrl) {
+        existing.imageUrl = car.imageUrl;
+      }
+      if (!existing.imageUrls || existing.imageUrls.length === 0) {
+        existing.imageUrls = car.imageUrls;
+      }
+      continue;
+    }
+
+    byId.set(car.id, {
+      id: car.id,
+      source: car.source,
+      year: car.year,
+      make: car.make,
+      model: car.model,
+      vin: car.vin,
+      lotNumber: car.lotNumber,
+      imageUrl: car.imageUrl,
+      imageUrls: car.imageUrls,
       inSearchCache: false,
       inImportedLots: false,
       inRecentCars: true,
     });
   }
 
-  const entries = [...byId.values()].sort((a, b) => b.year - a.year);
+  const entries = [...byId.values()]
+    .map((entry) => {
+      const normalized = normalizeCarImages({
+        id: entry.id,
+        source: entry.source as "marketcheck",
+        lotNumber: entry.lotNumber,
+        vin: entry.vin,
+        year: entry.year,
+        make: entry.make,
+        model: entry.model,
+        trim: "",
+        engine: "",
+        drivetrain: "",
+        transmission: "",
+        mileageKm: 0,
+        location: "",
+        damage: "normal_wear",
+        titleStatus: "",
+        sellerType: "",
+        runAndDrive: false,
+        hasKeys: false,
+        estimateMinUsd: 0,
+        estimateMaxUsd: 0,
+        currentBidUsd: 0,
+        imageUrl: entry.imageUrl,
+        imageUrls: entry.imageUrls,
+      });
+
+      return {
+        ...entry,
+        imageUrl: normalized.imageUrl,
+      };
+    })
+    .sort((a, b) => b.year - a.year);
   return NextResponse.json({ entries }, { status: 200 });
 }
