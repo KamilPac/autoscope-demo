@@ -15,7 +15,9 @@ Przykladowe komendy:
 - npm run install:browsers
 - npm run test:p0
 - npm run test:p1
+- npm run test:p2
 - npm run test:all
+- npm run test:p0:repeat20
 
 ## Zmienne opcjonalne
 
@@ -44,3 +46,9 @@ Zasada uruchamiania:
 
 - pull request i workflow_dispatch: uruchamiany pakiet P0
 - nightly (schedule): uruchamiany pelny pakiet testow
+
+## Stabilizacja i jakosc
+
+- Do okresowej kontroli flakiness uruchamiaj: npm run test:p0:repeat20
+- Minimalny cel z planu QA: pass rate P0 >= 95% na 20 kolejnych uruchomieniach
+- Raporty CI zawieraja HTML, trace/screenshot/video oraz junit.xml

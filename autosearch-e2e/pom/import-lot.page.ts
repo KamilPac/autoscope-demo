@@ -13,6 +13,16 @@ export class ImportLotPage {
     });
   }
 
+  async mockFailedImport(payload: unknown, status = 400) {
+    await this.page.route("**/api/lots/import", async (route) => {
+      await route.fulfill({
+        status,
+        contentType: "application/json",
+        body: JSON.stringify(payload),
+      });
+    });
+  }
+
   async goto() {
     await this.page.goto("/import-lot");
   }
@@ -26,5 +36,11 @@ export class ImportLotPage {
     await expect(this.page.getByText(message)).toBeVisible();
     await expect(this.page.getByText(detailsLine)).toBeVisible();
     await expect(this.page.getByRole("link", { name: "Show imported lot in results" })).toBeVisible();
+  }
+
+  async expectError(message: string, detailsLine: string) {
+    await expect(this.page.getByText(message)).toBeVisible();
+    await expect(this.page.getByText(detailsLine)).toBeVisible();
+    await expect(this.page.getByRole("link", { name: "Show imported lot in results" })).toHaveCount(0);
   }
 }

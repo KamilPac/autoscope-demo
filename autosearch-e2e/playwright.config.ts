@@ -14,7 +14,7 @@ export default defineConfig({
     timeout: 7_000,
   },
   retries: process.env.CI ? 1 : 0,
-  reporter: [["list"], ["html", { open: "never" }]],
+  reporter: [["list"], ["html", { open: "never" }], ["junit", { outputFile: "test-results/junit.xml" }]],
   use: {
     baseURL,
     trace: "retain-on-failure",

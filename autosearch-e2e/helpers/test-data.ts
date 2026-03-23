@@ -24,6 +24,15 @@ export const SEEDED_SOLD_LOT = {
   detailTitle: "2021 Audi A4",
 } as const;
 
+export const SEEDED_DUP_IMAGES_LOT = {
+  lotNumber: "90000003",
+  make: "Mercedes-Benz",
+  model: "E300",
+  year: 2019,
+  detailTitle: "2019 Mercedes-Benz E300",
+  expectedVisibleThumbnails: 2,
+} as const;
+
 export const BID_VALUES = {
   maxBid: 12400,
   maxBidFormatted: "$12,400",

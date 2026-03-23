@@ -121,6 +121,32 @@ Search cache:
 - Search results are cached locally in `data/search-cache.json`.
 - If the same filter/query is requested again, app reuses local cache instead of calling MarketCheck API.
 
+## E2E in GitHub Actions
+
+Workflow file:
+- `.github/workflows/playwright-e2e.yml`
+
+When tests run:
+- On pull requests: job `e2e-p0` runs critical scenarios only.
+- On manual trigger (`workflow_dispatch`): job `e2e-p0` runs.
+- On nightly schedule: job `e2e-nightly-full` runs the full suite.
+
+How to run manually in GitHub:
+1. Open repository tab `Actions`.
+2. Select workflow `Playwright E2E`.
+3. Click `Run workflow` and confirm branch.
+
+Where to find results:
+- Open a workflow run and check job logs (`e2e-p0` or `e2e-nightly-full`).
+- Download artifacts:
+	- `playwright-report-*` (HTML report)
+	- `test-results-*` (traces/screenshots/videos)
+
+Equivalent local commands (from `autosearch-e2e`):
+- `npm run test:p0`
+- `npm run test:p1`
+- `npm run test:all`
+
 ## Next steps
 
 - Add provider-specific payload mapping in `src/lib/server/http-provider.ts`.
