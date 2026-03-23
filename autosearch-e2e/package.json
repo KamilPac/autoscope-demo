@@ -1,0 +1,19 @@
+{
+  "name": "autosearch-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:p0": "playwright test tests/auth/auth-guard.spec.ts tests/auth/login-logout.spec.ts tests/auth/login-next-redirect.spec.ts tests/cars/search-to-details.spec.ts tests/cars/observe-bid-flow.spec.ts tests/import/import-lot.spec.ts tests/cars/data-consistency.spec.ts",
+    "test:p1": "playwright test tests/cars/sold-lock.spec.ts tests/panel/panel-tabs.spec.ts tests/admin/admin-access.spec.ts",
+    "test:all": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "install:browsers": "playwright install"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "typescript": "^5.9.3"
+  }
+}
