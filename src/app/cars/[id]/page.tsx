@@ -54,6 +54,8 @@ export default async function CarDetailsPage({ params, searchParams }: PageProps
   const gallery = filterVehicleImages(car.imageUrls, car).map(toDisplayImageUrl);
   const selectedIdx = Math.max(0, Math.min(gallery.length - 1, Number(img ?? "0") || 0));
   const imageUrl = gallery[selectedIdx] ?? toDisplayImageUrl(car.imageUrl);
+  const carId = car.id;
+  const carForBidSnapshot = car;
   const isWatched = currentUser ? await isCarWatched(currentUser, car.id) : false;
   const userMaxBid = currentUser ? await getUserMaxBid(currentUser, car.id) : null;
   const effectiveMaxBid = userMaxBid ?? car.currentBidUsd;
@@ -65,12 +67,12 @@ export default async function CarDetailsPage({ params, searchParams }: PageProps
 
     const user = await getCurrentUser();
     if (!user) {
-      redirect(`/login?next=${encodeURIComponent(`/cars/${encodeURIComponent(car.id)}`)}`);
+      redirect(`/login?next=${encodeURIComponent(`/cars/${encodeURIComponent(carId)}`)}`);
     }
 
-    await addWatchedCar(user, car);
+    await addWatchedCar(user, carForBidSnapshot);
     revalidatePath("/panel");
-    revalidatePath(`/cars/${encodeURIComponent(car.id)}`);
+    revalidatePath(`/cars/${encodeURIComponent(carId)}`);
   }
 
   async function handleUnwatch() {
@@ -78,12 +80,12 @@ export default async function CarDetailsPage({ params, searchParams }: PageProps
 
     const user = await getCurrentUser();
     if (!user) {
-      redirect(`/login?next=${encodeURIComponent(`/cars/${encodeURIComponent(car.id)}`)}`);
+      redirect(`/login?next=${encodeURIComponent(`/cars/${encodeURIComponent(carId)}`)}`);
     }
 
-    await removeWatchedCar(user, car.id);
+    await removeWatchedCar(user, carId);
     revalidatePath("/panel");
-    revalidatePath(`/cars/${encodeURIComponent(car.id)}`);
+    revalidatePath(`/cars/${encodeURIComponent(carId)}`);
   }
 
   async function handleAdjustMaxBid(formData: FormData) {
@@ -91,7 +93,7 @@ export default async function CarDetailsPage({ params, searchParams }: PageProps
 
     const user = await getCurrentUser();
     if (!user) {
-      redirect(`/login?next=${encodeURIComponent(`/cars/${encodeURIComponent(car.id)}`)}`);
+      redirect(`/login?next=${encodeURIComponent(`/cars/${encodeURIComponent(carId)}`)}`);
     }
 
     const direction = String(formData.get("direction") ?? "").trim();
@@ -99,15 +101,15 @@ export default async function CarDetailsPage({ params, searchParams }: PageProps
     const step = BID_STEP_OPTIONS_USD.includes(requestedStep as (typeof BID_STEP_OPTIONS_USD)[number])
       ? requestedStep
       : BID_STEP_OPTIONS_USD[0];
-    const current = (await getUserMaxBid(user, car.id)) ?? car.currentBidUsd;
+    const current = (await getUserMaxBid(user, carId)) ?? carForBidSnapshot.currentBidUsd;
     const delta = direction === "minus" ? -step : step;
     const next = Math.max(0, current + delta);
 
-    await setUserMaxBid(user, car.id, next, {
-      ...car,
+    await setUserMaxBid(user, carId, next, {
+      ...carForBidSnapshot,
       currentBidUsd: next,
     });
-    revalidatePath(`/cars/${encodeURIComponent(car.id)}`);
+    revalidatePath(`/cars/${encodeURIComponent(carId)}`);
     revalidatePath("/panel");
   }
 
@@ -116,17 +118,17 @@ export default async function CarDetailsPage({ params, searchParams }: PageProps
 
     const user = await getCurrentUser();
     if (!user) {
-      redirect(`/login?next=${encodeURIComponent(`/cars/${encodeURIComponent(car.id)}`)}`);
+      redirect(`/login?next=${encodeURIComponent(`/cars/${encodeURIComponent(carId)}`)}`);
     }
 
     const requestedAmount = Number(formData.get("maxBid") ?? "0");
-    const next = Math.max(0, Number.isFinite(requestedAmount) ? Math.round(requestedAmount) : car.currentBidUsd);
+    const next = Math.max(0, Number.isFinite(requestedAmount) ? Math.round(requestedAmount) : carForBidSnapshot.currentBidUsd);
 
-    await setUserMaxBid(user, car.id, next, {
-      ...car,
+    await setUserMaxBid(user, carId, next, {
+      ...carForBidSnapshot,
       currentBidUsd: next,
     });
-    revalidatePath(`/cars/${encodeURIComponent(car.id)}`);
+    revalidatePath(`/cars/${encodeURIComponent(carId)}`);
     revalidatePath("/panel");
   }
 
@@ -200,7 +202,16 @@ export default async function CarDetailsPage({ params, searchParams }: PageProps
                 <strong>Transmission:</strong> {car.transmission}
               </p>
               <p>
+                <strong>Body style:</strong> {car.bodyStyle ?? "Not provided"}
+              </p>
+              <p>
+                <strong>Fuel type:</strong> {car.fuelType ?? "Not provided"}
+              </p>
+              <p>
                 <strong>Drivetrain:</strong> {car.drivetrain}
+              </p>
+              <p>
+                <strong>Exterior color:</strong> {car.exteriorColor ?? "Not provided"}
               </p>
               <p>
                 <strong>Mileage:</strong> {car.mileageKm.toLocaleString()} km

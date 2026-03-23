@@ -17,6 +17,12 @@ type MaybeVehicleData = {
   imageUrl?: string;
 };
 
+type BrowserExtractResult = {
+  html: string;
+  fields: Array<[string, string]>;
+  images: string[];
+};
+
 const KNOWN_MAKES = [
   "Acura",
   "Audi",
@@ -127,6 +133,32 @@ function normalizeSpaces(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function cleanRepeatedFieldValue(value: string | null | undefined, fallback: string) {
+  const initial = sanitizeExtractedValue(value);
+  if (!initial) {
+    return fallback;
+  }
+
+  let cleaned = normalizeSpaces(initial.replace(/\s*\|\s*$/, ""));
+
+  const duplicatedWithPipe = cleaned.match(/^(.{2,120}?)\s*\|\s*\1$/i);
+  if (duplicatedWithPipe?.[1]) {
+    cleaned = normalizeSpaces(duplicatedWithPipe[1]);
+  }
+
+  if (cleaned.length >= 4 && cleaned.length % 2 === 0) {
+    const half = cleaned.length / 2;
+    const left = cleaned.slice(0, half).trim();
+    const right = cleaned.slice(half).trim();
+    if (left && right && normalizeLabelKey(left) === normalizeLabelKey(right)) {
+      cleaned = left;
+    }
+  }
+
+  const finalValue = sanitizeExtractedValue(cleaned);
+  return finalValue ?? fallback;
+}
+
 function decodeHtmlEntities(value: string) {
   return value
     .replace(/&amp;/g, "&")
@@ -146,17 +178,85 @@ function normalizeLabelKey(value: string) {
     .trim();
 }
 
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function sanitizeExtractedValue(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = normalizeSpaces(decodeHtmlEntities(value).replace(/<[^>]+>/g, " "));
+  if (!normalized) {
+    return null;
+  }
+
+  const lowered = normalized.toLowerCase();
+  if (
+    lowered === "span" ||
+    lowered.includes("span class") ||
+    lowered.includes("meta name") ||
+    lowered === "href" ||
+    lowered.startsWith("class ") ||
+    lowered === "id" ||
+    lowered === "type" ||
+    lowered === "content" ||
+    lowered === "src"
+  ) {
+    return null;
+  }
+
+  return normalized;
+}
+
 function extractLabeledFields(html: string) {
   const fields = new Map<string, string>();
-  const pattern = /<span[^>]*title=["']([^"']+)["'][^>]*>[\s\S]*?<\/span>\s*<div[^>]*title=["']([^"']*)["']/gi;
+  const pushPair = (labelRaw: string | undefined, valueRaw: string | undefined) => {
+    const label = normalizeLabelKey(labelRaw ?? "");
+    const value = sanitizeExtractedValue(valueRaw);
 
-  for (const match of html.matchAll(pattern)) {
-    const labelRaw = match[1];
-    const valueRaw = match[2];
+    if (!label || !value) {
+      return;
+    }
 
-    const label = normalizeLabelKey(labelRaw);
-    const value = normalizeSpaces(decodeHtmlEntities(valueRaw));
+    fields.set(label, value);
+  };
 
+  const titlePattern = /<span[^>]*title=["']([^"']+)["'][^>]*>[\s\S]*?<\/span>\s*<div[^>]*title=["']([^"']*)["']/gi;
+  for (const match of html.matchAll(titlePattern)) {
+    pushPair(match[1], match[2]);
+  }
+
+  const thTdPattern = /<tr[^>]*>[\s\S]{0,220}?<th[^>]*>([\s\S]*?)<\/th>[\s\S]{0,260}?<td[^>]*>([\s\S]*?)<\/td>[\s\S]*?<\/tr>/gi;
+  for (const match of html.matchAll(thTdPattern)) {
+    pushPair(match[1], match[2]);
+  }
+
+  const dtDdPattern = /<dt[^>]*>([\s\S]*?)<\/dt>[\s\S]{0,260}?<dd[^>]*>([\s\S]*?)<\/dd>/gi;
+  for (const match of html.matchAll(dtDdPattern)) {
+    pushPair(match[1], match[2]);
+  }
+
+  const rowPattern = /<div[^>]*class=["'][^"']*(?:row|item|field)[^"']*["'][^>]*>[\s\S]{0,260}?<span[^>]*class=["'][^"']*(?:label|name|title)[^"']*["'][^>]*>([\s\S]*?)<\/span>[\s\S]{0,260}?<span[^>]*class=["'][^"']*(?:value|data)[^"']*["'][^>]*>([\s\S]*?)<\/span>[\s\S]*?<\/div>/gi;
+  for (const match of html.matchAll(rowPattern)) {
+    pushPair(match[1], match[2]);
+  }
+
+  const jsonLabelPattern = /"label"\s*:\s*"([^"]{2,80})"[\s\S]{0,120}?"value"\s*:\s*"([^"]{1,140})"/gi;
+  for (const match of html.matchAll(jsonLabelPattern)) {
+    pushPair(match[1], match[2].replace(/\\\//g, "/"));
+  }
+
+  return fields;
+}
+
+function mapFromPairs(pairs: Array<[string, string]>) {
+  const fields = new Map<string, string>();
+
+  for (const [rawLabel, rawValue] of pairs) {
+    const label = normalizeLabelKey(rawLabel);
+    const value = sanitizeExtractedValue(rawValue);
     if (!label || !value) {
       continue;
     }
@@ -165,6 +265,134 @@ function extractLabeledFields(html: string) {
   }
 
   return fields;
+}
+
+function mergeFields(primary: Map<string, string>, secondary: Map<string, string>) {
+  const merged = new Map<string, string>(primary);
+  for (const [key, value] of secondary.entries()) {
+    merged.set(key, value);
+  }
+  return merged;
+}
+
+function isChallengePage(html: string) {
+  const lowered = html.toLowerCase();
+  return (
+    lowered.includes("just a moment") ||
+    lowered.includes("cf-challenge") ||
+    lowered.includes("cloudflare") ||
+    lowered.includes("enable javascript and cookies to continue")
+  );
+}
+
+async function fetchWithBrowser(url: string): Promise<BrowserExtractResult> {
+  const playwright = await import("playwright");
+  const runExtract = async (headless: boolean) => {
+    const browser = await playwright.chromium.launch({
+      headless,
+      args: ["--disable-blink-features=AutomationControlled"],
+    });
+
+    try {
+      const context = await browser.newContext({
+        locale: "pl-PL",
+        userAgent:
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        viewport: { width: 1480, height: 1000 },
+      });
+
+      const page = await context.newPage();
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+      await page.waitForTimeout(headless ? 3500 : 6000);
+
+      const extracted = await page.evaluate(() => {
+        const normalize = (value: string) => value.replace(/\s+/g, " ").trim();
+
+        const fields: Array<[string, string]> = [];
+        const pushField = (labelRaw: string | null | undefined, valueRaw: string | null | undefined) => {
+          const label = normalize(labelRaw ?? "").replace(/:+$/, "");
+          const value = normalize(valueRaw ?? "");
+          if (!label || !value || label.length < 2 || value.length < 1) {
+            return;
+          }
+
+          fields.push([label, value]);
+        };
+
+        for (const row of Array.from(document.querySelectorAll("li, tr, .row, .item, .field"))) {
+          const text = normalize((row as HTMLElement).innerText || row.textContent || "");
+          const colon = text.match(/^([^:]{2,50}):\s*(.{1,180})$/);
+          if (colon) {
+            pushField(colon[1], colon[2]);
+          }
+        }
+
+        for (const labelEl of Array.from(document.querySelectorAll("span, div, th, dt, strong, b"))) {
+          const labelText = normalize((labelEl as HTMLElement).innerText || labelEl.textContent || "");
+          if (!labelText || !labelText.endsWith(":")) {
+            continue;
+          }
+
+          const cleanedLabel = labelText.slice(0, -1).trim();
+          const sibling = (labelEl as HTMLElement).nextElementSibling as HTMLElement | null;
+          if (sibling) {
+            const siblingText = normalize(sibling.innerText || sibling.textContent || "");
+            if (siblingText) {
+              pushField(cleanedLabel, siblingText);
+              continue;
+            }
+          }
+        }
+
+        const pageText = normalize(document.body.innerText || "");
+        const patterns: Array<[string, RegExp]> = [
+          ["Lokalizacja", /Lokalizacja:\s*([^\n]{2,80})/i],
+          ["Przebieg", /Przebieg\s*([^\n]{2,80})/i],
+          ["Status", /Status\s*([^\n]{2,80})/i],
+          ["Kluczyk", /Kluczyk\s*([^\n]{2,80})/i],
+          ["ACV • ERC", /ACV\s*[•/]\s*ERC\s*([^\n]{2,120})/i],
+          ["Rodzaj nadwozia", /Rodzaj nadwozia\s*([^\n]{2,80})/i],
+          ["Silnik", /Silnik\s*([^\n]{2,100})/i],
+          ["Skrzynia biegów", /Skrzynia bieg[oó]w\s*([^\n]{2,80})/i],
+          ["Typ napędu", /Typ nap[eę]du\s*([^\n]{2,80})/i],
+          ["Typ paliwa", /Typ paliwa\s*([^\n]{2,80})/i],
+          ["Główne uszkodzenie", /G[łl][oó]wne uszk\.?\s*([^\n]{2,80})/i],
+          ["Pozostałe uszkodzenie", /Pozosta[łl]e uszk\.?\s*([^\n]{2,80})/i],
+          ["Status sprzedaży", /Status sprzeda[żz]y\s*([^\n]{2,80})/i],
+        ];
+
+        for (const [label, pattern] of patterns) {
+          const match = pageText.match(pattern);
+          if (match?.[1]) {
+            pushField(label, match[1]);
+          }
+        }
+
+        const images = Array.from(document.querySelectorAll("img"))
+          .map((img) => (img as HTMLImageElement).currentSrc || (img as HTMLImageElement).src || "")
+          .map((src) => normalize(src))
+          .filter((src) => /^https?:\/\//i.test(src));
+
+        return {
+          html: document.documentElement.outerHTML,
+          fields,
+          images,
+        };
+      });
+
+      await context.close();
+      return extracted;
+    } finally {
+      await browser.close();
+    }
+  };
+
+  const headlessResult = await runExtract(true);
+  if (!isChallengePage(headlessResult.html)) {
+    return headlessResult;
+  }
+
+  return runExtract(false);
 }
 
 function fieldFromMap(fields: Map<string, string>, labels: string[]) {
@@ -177,6 +405,65 @@ function fieldFromMap(fields: Map<string, string>, labels: string[]) {
   }
 
   return null;
+}
+
+function extractFieldByVisibleLabel(html: string, labels: string[]) {
+  for (const label of labels) {
+    const escaped = escapeRegex(label);
+
+    const withTitle = new RegExp(
+      `<span[^>]*title=["']${escaped}["'][^>]*>[\\s\\S]*?<\\/span>[\\s\\S]{0,220}?<div[^>]*title=["']([^"']+)["']`,
+      "i",
+    );
+    const withTitleMatch = html.match(withTitle);
+    const valueFromTitle = sanitizeExtractedValue(withTitleMatch?.[1]);
+    if (valueFromTitle) {
+      return valueFromTitle;
+    }
+
+    const withSpan = new RegExp(`>${escaped}<\\/span>[\\s\\S]{0,260}?<span[^>]*>([^<]{1,140})<\\/span>`, "i");
+    const withSpanMatch = html.match(withSpan);
+    const valueFromSpan = sanitizeExtractedValue(withSpanMatch?.[1]);
+    if (valueFromSpan) {
+      return valueFromSpan;
+    }
+  }
+
+  return null;
+}
+
+function extractFieldFromPageText(html: string, labels: string[]) {
+  const plainText = normalizeSpaces(
+    decodeHtmlEntities(
+      html
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<[^>]+>/g, " "),
+    ),
+  );
+
+  for (const label of labels) {
+    const escaped = escapeRegex(label).replace(/\s+/g, "\\s+");
+    const withColon = new RegExp(`${escaped}\\s*:\\s*([^$]{1,140}?)(?=(?:\\s+[A-ZĄĆĘŁŃÓŚŹŻ][^:]{1,40}:)|$)`, "i");
+    const colonMatch = plainText.match(withColon);
+    const colonValue = sanitizeExtractedValue(colonMatch?.[1]);
+    if (colonValue) {
+      return colonValue;
+    }
+
+    const withoutColon = new RegExp(`${escaped}\\s+([^$]{1,120}?)(?=(?:\\s+[A-ZĄĆĘŁŃÓŚŹŻ][^:]{1,40}\\s)|$)`, "i");
+    const plainMatch = plainText.match(withoutColon);
+    const plainValue = sanitizeExtractedValue(plainMatch?.[1]);
+    if (plainValue) {
+      return plainValue;
+    }
+  }
+
+  return null;
+}
+
+function readField(html: string, fields: Map<string, string>, labels: string[]) {
+  return fieldFromMap(fields, labels) ?? extractFieldByVisibleLabel(html, labels) ?? extractFieldFromPageText(html, labels);
 }
 
 function hasToken(text: string, token: string | undefined) {
@@ -386,7 +673,7 @@ function inferYear(title: string) {
 }
 
 function inferMileageKm(html: string, fields?: Map<string, string>) {
-  const fromField = fields ? fieldFromMap(fields, ["Przebieg", "Mileage", "Odometer"]) : null;
+  const fromField = fields ? readField(html, fields, ["Przebieg", "Mileage", "Odometer"]) : null;
   if (fromField) {
     const kmMatch = fromField.match(/([0-9][0-9\s,.]{1,12})\s*km/i);
     if (kmMatch?.[1]) {
@@ -420,7 +707,7 @@ function inferMileageKm(html: string, fields?: Map<string, string>) {
 
 function inferBidUsd(html: string, fields?: Map<string, string>) {
   const fromField = fields
-    ? fieldFromMap(fields, ["Current bid", "Current price", "Aktualna licytacja", "Aktualna oferta", "Winning bid"])
+    ? readField(html, fields, ["Current bid", "Current price", "Aktualna licytacja", "Aktualna oferta", "Winning bid", "Bid"])
     : null;
 
   if (fromField) {
@@ -430,7 +717,7 @@ function inferBidUsd(html: string, fields?: Map<string, string>) {
     }
   }
 
-  const bidMatch = html.match(/(?:current\s+bid|current_bid|high\s+bid|max\s+bid|winning\s+bid)[^$0-9]{0,40}\$?\s*([0-9][0-9,\.]{1,12})/i);
+  const bidMatch = html.match(/(?:current\s+bid|current_bid|high\s+bid|max\s+bid|winning\s+bid|aktualna\s+licytacja)[^$0-9]{0,40}\$?\s*([0-9][0-9,\.]{1,12})/i);
   if (!bidMatch?.[1]) {
     return 0;
   }
@@ -471,7 +758,7 @@ function inferMoneyNearLabel(html: string, labels: string[], fields?: Map<string
 }
 
 function inferAcvErc(fields: Map<string, string>) {
-  const value = fieldFromMap(fields, ["ACV • ERC", "ACV/ERC", "ACV ERC"]);
+  const value = fieldFromMap(fields, ["ACV • ERC", "ACV/ERC", "ACV ERC", "Acv/Erc"]);
   if (!value) {
     return { acv: null, erc: null };
   }
@@ -489,14 +776,17 @@ function inferAcvErc(fields: Map<string, string>) {
 function inferLocation(html: string, url: URL) {
   const locationMatch = html.match(/(?:location|yard|branch)[^A-Za-z0-9]{0,20}([A-Za-z0-9 ,.-]{4,60})/i);
   if (locationMatch?.[1]) {
-    return normalizeSpaces(locationMatch[1]);
+    const sanitized = sanitizeExtractedValue(locationMatch[1]);
+    if (sanitized) {
+      return sanitized;
+    }
   }
 
   return url.hostname;
 }
 
 function inferLocationWithFields(html: string, url: URL, fields?: Map<string, string>) {
-  const fromField = fields ? fieldFromMap(fields, ["Lokalizacja", "Location", "Yard", "Branch"]) : null;
+  const fromField = fields ? readField(html, fields, ["Lokalizacja", "Location", "Yard", "Branch"]) : null;
   if (fromField) {
     return fromField;
   }
@@ -515,8 +805,9 @@ function inferValueByLabel(html: string, labels: string[], fallback: string) {
     }
 
     const candidate = normalizeSpaces(decodeHtmlEntities(match[1])).replace(/[:|].*$/, "").trim();
-    if (candidate.length >= 2) {
-      return candidate;
+    const sanitized = sanitizeExtractedValue(candidate);
+    if (sanitized && sanitized.length >= 2) {
+      return sanitized;
     }
   }
 
@@ -526,7 +817,10 @@ function inferValueByLabel(html: string, labels: string[], fallback: string) {
 function inferTitleStatus(html: string) {
   const titleMatch = html.match(/(?:title\s*status|title)[^A-Za-z0-9]{0,20}([A-Za-z ]{3,40})/i);
   if (titleMatch?.[1]) {
-    return normalizeSpaces(titleMatch[1]);
+    const sanitized = sanitizeExtractedValue(titleMatch[1]);
+    if (sanitized) {
+      return sanitized;
+    }
   }
 
   return "Imported";
@@ -541,7 +835,7 @@ function inferHasKeys(html: string) {
 }
 
 function inferHasKeysWithFields(html: string, fields?: Map<string, string>) {
-  const fromField = fields ? fieldFromMap(fields, ["Klucz dostępny", "Klucz dostepny", "Has keys", "Keys"]) : null;
+  const fromField = fields ? readField(html, fields, ["Klucz dostępny", "Klucz dostepny", "Kluczyki", "Has keys", "Keys"]) : null;
   if (fromField) {
     return /tak|yes|available|1/i.test(normalizeLabelKey(fromField));
   }
@@ -550,7 +844,7 @@ function inferHasKeysWithFields(html: string, fields?: Map<string, string>) {
 }
 
 function inferRunAndDriveWithFields(html: string, fields?: Map<string, string>) {
-  const fromField = fields ? fieldFromMap(fields, ["Stan", "Condition", "Status"]) : null;
+  const fromField = fields ? readField(html, fields, ["Stan", "Condition", "Status"]) : null;
   if (fromField) {
     return /odpala|run|drive|rusza/i.test(normalizeLabelKey(fromField));
   }
@@ -559,14 +853,14 @@ function inferRunAndDriveWithFields(html: string, fields?: Map<string, string>) 
 }
 
 function inferAuctionStatus(html: string, fields?: Map<string, string>) {
-  const fromField = fields ? fieldFromMap(fields, ["Status sprzedaży", "Status sprzedazy", "Sale status"]) : null;
+  const fromField = fields ? readField(html, fields, ["Status sprzedaży", "Status sprzedazy", "Sale status"]) : null;
   if (fromField) {
     return fromField;
   }
 
   const match = html.match(/(?:sale\s+status|status\s+sprzed[aą]?[żz]y)[^A-Za-z0-9]{0,25}([A-Za-z\s]+)/i);
   if (match?.[1]) {
-    return normalizeSpaces(match[1]);
+    return sanitizeExtractedValue(match[1]) ?? undefined;
   }
 
   return undefined;
@@ -597,8 +891,41 @@ function shouldSkipImage(url: string) {
   );
 }
 
+function imageCanonicalKey(urlValue: string) {
+  try {
+    const parsed = new URL(urlValue);
+    const host = parsed.hostname.toLowerCase();
+    const pathParts = parsed.pathname.split("/").filter(Boolean);
+    const last = decodeURIComponent(pathParts[pathParts.length - 1] ?? "").toLowerCase();
+
+    if ((host.includes("images.bid.cars") || host.includes("pluto.bid.car") || host.includes("bid.cars")) && last) {
+      return `bidcars:${last}`;
+    }
+
+    if (host.includes("dreambid") && last) {
+      return `${host}:${last}`;
+    }
+
+    return `${host}:${parsed.pathname.toLowerCase()}`;
+  } catch {
+    return urlValue.toLowerCase();
+  }
+}
+
 function extractImageUrls(html: string, url: URL) {
-  const found = new Set<string>();
+  const found = new Map<string, string>();
+
+  const pushImage = (candidate: string) => {
+    const absolute = absoluteUrlOrNull(candidate, url);
+    if (!absolute || shouldSkipImage(absolute)) {
+      return;
+    }
+
+    const key = imageCanonicalKey(absolute);
+    if (!found.has(key)) {
+      found.set(key, absolute);
+    }
+  };
 
   const metaCandidates = [
     extractMetaContent(html, "og:image"),
@@ -607,41 +934,29 @@ function extractImageUrls(html: string, url: URL) {
   ].filter((value): value is string => Boolean(value));
 
   for (const item of metaCandidates) {
-    const absolute = absoluteUrlOrNull(item, url);
-    if (absolute && !shouldSkipImage(absolute)) {
-      found.add(absolute);
-    }
+    pushImage(item);
   }
 
   const attributePattern = /(src|data-src|data-lazy|data-original|data-image|content)=["']([^"']+\.(?:jpg|jpeg|png|webp)(?:\?[^"']*)?)["']/gi;
   for (const match of html.matchAll(attributePattern)) {
-    const candidate = match[2];
-    const absolute = absoluteUrlOrNull(candidate, url);
-    if (absolute && !shouldSkipImage(absolute)) {
-      found.add(absolute);
-    }
+    pushImage(match[2]);
   }
 
   const absolutePattern = /https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>]*)?/gi;
   for (const match of html.matchAll(absolutePattern)) {
-    const candidate = match[0];
-    if (!shouldSkipImage(candidate)) {
-      found.add(candidate);
-    }
+    pushImage(match[0]);
   }
 
-  const jsonPhotoPattern = /"(?:photo_links_cached|photo_links|images|imageUrls|gallery|photos)"\s*:\s*\[(.*?)\]/gis;
+  const jsonPhotoPattern = /"(?:photo_links_cached|photo_links|images|imageUrls|gallery|photos)"\s*:\s*\[([\s\S]*?)\]/gi;
   for (const block of html.matchAll(jsonPhotoPattern)) {
     const rawBlock = block[1] ?? "";
     for (const imageMatch of rawBlock.matchAll(/"(https?:\\\/\\\/[^"\\]+(?:\\\/[^"\\]+)*\.(?:jpg|jpeg|png|webp)(?:\\\?[^"\\]+)?)"/gi)) {
       const decoded = imageMatch[1].replace(/\\\//g, "/");
-      if (!shouldSkipImage(decoded)) {
-        found.add(decoded);
-      }
+      pushImage(decoded);
     }
   }
 
-  return [...found];
+  return [...found.values()];
 }
 
 function inferImageUrl(html: string) {
@@ -709,12 +1024,48 @@ export async function importLotFromUrl(rawUrl: string): Promise<ImportedLotPaylo
     },
   });
 
-  if (!response.ok) {
-    throw new Error(`Could not fetch lot page (${response.status})`);
+  let html = "";
+  let browserFields = new Map<string, string>();
+  let browserImages: string[] = [];
+  const isBidCarsLike = /(^|\.)bid\.cars$/i.test(parsedUrl.hostname) || /(^|\.)dreambid\.pl$/i.test(parsedUrl.hostname);
+
+  if (isBidCarsLike) {
+    try {
+      const browserExtracted = await fetchWithBrowser(parsedUrl.toString());
+      if (!isChallengePage(browserExtracted.html)) {
+        html = browserExtracted.html;
+        browserFields = mapFromPairs(browserExtracted.fields);
+        browserImages = browserExtracted.images;
+      }
+    } catch {
+      // Continue with HTTP response fallback when browser extraction fails.
+    }
   }
 
-  const html = await response.text();
-  const labeledFields = extractLabeledFields(html);
+  if (!html && response.ok) {
+    html = await response.text();
+  }
+
+  if (!response.ok || isChallengePage(html)) {
+    if (!isBidCarsLike) {
+      throw new Error(
+        response.status === 403
+          ? "Auction page blocked automated access (Cloudflare/anti-bot)."
+          : `Could not fetch lot page (${response.status})`,
+      );
+    }
+
+    try {
+      const browserExtracted = await fetchWithBrowser(parsedUrl.toString());
+      html = browserExtracted.html;
+      browserFields = mapFromPairs(browserExtracted.fields);
+      browserImages = browserExtracted.images;
+    } catch {
+      throw new Error("Auction page blocked automated access and browser-rendered fallback failed.");
+    }
+  }
+
+  const labeledFields = mergeFields(extractLabeledFields(html), browserFields);
   const pageTitle =
     extractMetaContent(html, "og:title") ?? extractMetaContent(html, "twitter:title") ?? extractTitle(html);
   const jsonLdVehicle = vehicleFromJsonLd(html);
@@ -738,38 +1089,61 @@ export async function importLotFromUrl(rawUrl: string): Promise<ImportedLotPaylo
     acvErc.erc ??
     inferMoneyNearLabel(html, ["estimate max", "max estimate", "buy now", "retail value", "estimated retail value"], labeledFields) ??
     null;
-  const rawImages = extractImageUrls(html, parsedUrl);
+  const rawImages = [...new Set([...browserImages, ...extractImageUrls(html, parsedUrl)])];
   const lotScopedImages = rawImages.filter((item) => {
     const decoded = decodeURIComponent(item);
     return hasToken(item, lotNumber) || hasToken(decoded, lotNumber) || hasToken(item, vin) || hasToken(decoded, vin);
   });
-  const sourceImages = lotScopedImages.length >= 3 ? lotScopedImages : rawImages;
+  const sourceImages = lotScopedImages.length > 0 ? lotScopedImages : rawImages;
   const preliminaryImage = rawImages[0] ?? jsonLdVehicle.imageUrl ?? inferImageUrl(html);
-  const imageUrls = filterVehicleImages(sourceImages.length > 0 ? sourceImages : [preliminaryImage], {
+  const filteredImageUrls = filterVehicleImages(sourceImages.length > 0 ? sourceImages : [preliminaryImage], {
     id: `${source}-${lotNumber}`,
     vin,
     lotNumber,
     imageUrl: preliminaryImage,
   });
+  const canonicalizedImageUrls = new Map<string, string>();
+  for (const item of filteredImageUrls) {
+    const key = imageCanonicalKey(item);
+    if (!canonicalizedImageUrls.has(key)) {
+      canonicalizedImageUrls.set(key, item);
+    }
+  }
+  const imageUrls = [...canonicalizedImageUrls.values()];
   const imageUrl = imageUrls[0] ?? preliminaryImage;
   const limitedAccess = detectLimitedAccess(html);
-  const driveInfo = fieldFromMap(labeledFields, ["Napęd", "Naped", "Powertrain"]);
+  const driveInfo = readField(html, labeledFields, ["Napęd", "Naped", "Powertrain", "Układ napędowy", "Drive train"]);
   const driveParts = driveInfo ? driveInfo.split("•").map((part) => normalizeSpaces(part)) : [];
   const transmission =
     driveParts.find((part) => /\bat\b|\bmt\b|automatic|manual|cvt|dct/i.test(part)) ??
-    inferValueByLabel(html, ["transmission", "gearbox"], "AT");
+    (limitedAccess ? "AT" : inferValueByLabel(html, ["Skrzynia biegów", "Transmission", "Gearbox"], "AT"));
   const drivetrain =
-    driveParts.find((part) => /4x4|awd|fwd|rwd/i.test(part)) ?? inferValueByLabel(html, ["drivetrain", "drive type", "drive train"], "Not provided");
-  const engine =
+    driveParts.find((part) => /4x4|awd|fwd|rwd/i.test(part)) ??
+    (limitedAccess ? "Not provided" : inferValueByLabel(html, ["Typ napędu", "Drivetrain", "Drive type", "Drive train"], "Not provided"));
+  const inferredEngine =
     driveParts
       .filter((part) => !/4x4|awd|fwd|rwd|\bat\b|\bmt\b|automatic|manual|cvt|dct/i.test(part))
-      .join(" • ") || inferValueByLabel(html, ["engine", "motor", "cylinders", "powertrain"], "Not provided");
+      .join(" • ") ||
+    (limitedAccess ? "Not provided" : inferValueByLabel(html, ["Silnik", "Engine", "Motor", "Cylinders", "Powertrain"], "Not provided"));
+  const engineCandidate = /^(type|cycle)$/i.test(normalizeLabelKey(inferredEngine)) ? "Not provided" : inferredEngine;
+  const engine = cleanRepeatedFieldValue(engineCandidate, "Not provided");
+  const bodyStyle = cleanRepeatedFieldValue(
+    readField(html, labeledFields, ["Rodzaj nadwozia", "Body style", "Body type", "Typ"]),
+    "Not provided",
+  );
+  const exteriorColor = cleanRepeatedFieldValue(
+    readField(html, labeledFields, ["Kolor karoserii", "Kolor", "Exterior color", "Color"]),
+    "Not provided",
+  );
+  const fuelType = cleanRepeatedFieldValue(readField(html, labeledFields, ["Typ paliwa", "Fuel type", "Fuel"]), "Not provided");
+  const normalizedTransmission = cleanRepeatedFieldValue(transmission, "AT");
+  const normalizedDrivetrain = cleanRepeatedFieldValue(drivetrain, "Not provided");
   const sellerType =
-    fieldFromMap(labeledFields, ["Typ sprzedawcy", "Sprzedawca", "Seller type", "Seller", "Sale type"]) ??
-    inferValueByLabel(html, ["seller type", "seller", "sale type"], "Unknown");
-  const documentType = fieldFromMap(labeledFields, ["Typ dokumentu", "Document type", "Title type"]);
-  const documentStatus = fieldFromMap(labeledFields, ["Status dokumentów", "Status dokumentow", "Document status", "Title status"]);
-  const titleStatus = [documentType, documentStatus].filter(Boolean).join(" • ") || inferTitleStatus(html);
+    readField(html, labeledFields, ["Typ sprzedawcy", "Sprzedawca", "Seller type", "Seller", "Sale type"]) ??
+    (limitedAccess ? "Unknown" : inferValueByLabel(html, ["Typ sprzedawcy", "Seller type", "Seller", "Sale type"], "Unknown"));
+  const documentType = readField(html, labeledFields, ["Typ dokumentu", "Document type", "Title type"]);
+  const documentStatus = readField(html, labeledFields, ["Status dokumentów", "Status dokumentow", "Document status", "Title status"]);
+  const titleStatus = [documentType, documentStatus].filter(Boolean).join(" • ") || (limitedAccess ? "Imported" : inferTitleStatus(html));
   const mainDamage = inferDamageFromText(fieldFromMap(labeledFields, ["Uszkodzenie główne", "Uszkodzenie glowne", "Primary damage"]));
   const secondaryDamage = inferDamageFromText(fieldFromMap(labeledFields, ["Uszkodzenie dodatkowe", "Secondary damage"]));
   const damage = mainDamage ?? secondaryDamage ?? inferDamage(html);
@@ -784,8 +1158,11 @@ export async function importLotFromUrl(rawUrl: string): Promise<ImportedLotPaylo
     model: jsonLdVehicle.model ?? urlVehicle.model ?? makeModel.model,
     trim: jsonLdVehicle.trim ?? urlVehicle.trim ?? (limitedAccess ? "Imported (limited data)" : makeModel.trim),
     engine,
-    drivetrain,
-    transmission,
+    drivetrain: normalizedDrivetrain,
+    transmission: normalizedTransmission,
+    bodyStyle,
+    exteriorColor,
+    fuelType,
     mileageKm,
     location: inferLocationWithFields(html, parsedUrl, labeledFields),
     damage,

@@ -60,6 +60,13 @@ function imageSignature(url: string) {
     return `${inventoryMatch[1]}${inventoryMatch[3]}`;
   }
 
+  // BidCars often serves the same photo from multiple hosts (images.bid.cars and pluto.bid.car).
+  // Normalize to filename so those mirrored URLs collapse into one image.
+  const bidCarsMatch = lower.match(/^https?:\/\/(?:images\.bid\.cars|pluto\.bid\.car|(?:www\.)?bid\.cars)\/[^?#]*\/([^/?#]+\.(?:jpg|jpeg|png|webp))(?:[?#].*)?$/i);
+  if (bidCarsMatch?.[1]) {
+    return `bidcars:${bidCarsMatch[1]}`;
+  }
+
   return lower;
 }
 

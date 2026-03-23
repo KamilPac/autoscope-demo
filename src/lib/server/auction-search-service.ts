@@ -119,6 +119,15 @@ export async function searchCars(query: CarSearchQuery) {
 }
 
 export async function findCarById(id: string, hint?: { vin?: string }): Promise<CarItem | undefined> {
+  const importedLots = await getImportedLots();
+  const importedMatch = importedLots.find((item) => item.id === id);
+
+  if (importedMatch) {
+    await rememberRecentCars([importedMatch]);
+    recentCarsCache.set(importedMatch.id, importedMatch);
+    return normalizeCarImages(importedMatch);
+  }
+
   const cached = recentCarsCache.get(id);
 
   if (cached) {
@@ -129,14 +138,6 @@ export async function findCarById(id: string, hint?: { vin?: string }): Promise<
   if (recentMatch) {
     recentCarsCache.set(recentMatch.id, recentMatch);
     return normalizeCarImages(recentMatch);
-  }
-
-  const importedLots = await getImportedLots();
-  const importedMatch = importedLots.find((item) => item.id === id);
-
-  if (importedMatch) {
-    recentCarsCache.set(importedMatch.id, importedMatch);
-    return normalizeCarImages(importedMatch);
   }
 
   const source: CarSearchQuery["source"] = "all";

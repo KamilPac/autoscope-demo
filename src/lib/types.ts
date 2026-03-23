@@ -24,6 +24,9 @@ export type CarItem = {
   engine: string;
   drivetrain: string;
   transmission: string;
+  bodyStyle?: string;
+  exteriorColor?: string;
+  fuelType?: string;
   mileageKm: number;
   location: string;
   damage: DamageType;
