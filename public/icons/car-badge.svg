@@ -1,0 +1,16 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sports car icon">
+  <defs>
+    <linearGradient id="paint" x1="16" y1="92" x2="112" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316"/>
+      <stop offset="1" stop-color="#DC2626"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="24" fill="#0B1020"/>
+  <path d="M22 78C22 74.5 24.5 71.4 28 70.6L36.4 68.8C39.1 68.2 41.5 66.8 43.2 64.6L50.4 55.4C52.5 52.7 55.8 51 59.3 51H83.5C86.8 51 89.9 52.5 92 55L98.8 63.2C100.3 65 102.4 66.2 104.7 66.7L108.5 67.5C111.6 68.2 114 70.9 114 74.1V83.2C114 87 111 90 107.2 90H104.1C103.1 83.7 97.8 79 91.2 79C84.6 79 79.3 83.7 78.3 90H51.1C50.1 83.7 44.8 79 38.2 79C31.6 79 26.3 83.7 25.3 90H22V78Z" fill="url(#paint)"/>
+  <path d="M48 62L41 70H66V62H48Z" fill="#FDBA74" fill-opacity="0.5"/>
+  <path d="M70 62V70H95L88.5 62H70Z" fill="#FDBA74" fill-opacity="0.5"/>
+  <circle cx="38.5" cy="92" r="10.5" fill="#0F172A" stroke="#CBD5E1" stroke-width="2"/>
+  <circle cx="91.5" cy="92" r="10.5" fill="#0F172A" stroke="#CBD5E1" stroke-width="2"/>
+  <circle cx="38.5" cy="92" r="4" fill="#E2E8F0"/>
+  <circle cx="91.5" cy="92" r="4" fill="#E2E8F0"/>
+</svg>

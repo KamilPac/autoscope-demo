@@ -1,0 +1,39 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ferrari-style race car on track">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1228"/>
+      <stop offset="1" stop-color="#0F172A"/>
+    </linearGradient>
+    <linearGradient id="car" x1="360" y1="530" x2="1120" y2="470" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316"/>
+      <stop offset="0.55" stop-color="#EF4444"/>
+      <stop offset="1" stop-color="#B91C1C"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(840 510) rotate(90) scale(260 620)">
+      <stop stop-color="#F87171" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#F87171" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <path d="M0 760L1600 560V900H0V760Z" fill="#1E293B"/>
+  <path d="M0 790L1600 590" stroke="#94A3B8" stroke-width="8" stroke-dasharray="30 22" opacity="0.45"/>
+  <ellipse cx="860" cy="610" rx="700" ry="170" fill="url(#glow)"/>
+
+  <g>
+    <path d="M350 600C350 567 374 538 406 532L492 514C522 508 548 492 568 467L637 384C662 353 699 335 739 335H965C1004 335 1041 350 1067 379L1142 461C1160 482 1185 497 1213 503L1262 514C1296 521 1322 550 1322 585V664C1322 705 1289 738 1248 738H1190C1178 671 1121 620 1050 620C980 620 922 671 910 738H773C761 671 703 620 633 620C562 620 505 671 493 738H424C383 738 350 705 350 664V600Z" fill="url(#car)"/>
+    <path d="M664 413L571 533H823V413H664Z" fill="#FECACA" fill-opacity="0.35"/>
+    <path d="M853 413V533H1113L1029 413H853Z" fill="#FECACA" fill-opacity="0.35"/>
+    <path d="M489 560H1186" stroke="#FDBA74" stroke-width="10" stroke-linecap="round" opacity="0.45"/>
+  </g>
+
+  <g>
+    <circle cx="633" cy="742" r="98" fill="#0F172A" stroke="#E2E8F0" stroke-width="10"/>
+    <circle cx="633" cy="742" r="38" fill="#CBD5E1"/>
+    <circle cx="1050" cy="742" r="98" fill="#0F172A" stroke="#E2E8F0" stroke-width="10"/>
+    <circle cx="1050" cy="742" r="38" fill="#CBD5E1"/>
+  </g>
+
+  <text x="130" y="180" fill="#E2E8F0" font-family="Arial, sans-serif" font-size="56" font-weight="700" letter-spacing="2">AUTOSEARCH</text>
+  <text x="130" y="235" fill="#67E8F9" font-family="Arial, sans-serif" font-size="30" font-weight="600" letter-spacing="5">FERRARI-INSPIRED TRACK VIEW</text>
+</svg>

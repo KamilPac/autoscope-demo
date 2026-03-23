@@ -37,9 +37,9 @@ export default async function CarsPage({
       <main className="container-wide space-y-6">
         <header className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.14em] text-slate-600">AutoScope Demo</p>
+            <p className="text-xs uppercase tracking-[0.14em] text-slate-600">AutoSearch</p>
             <h1 className="font-heading text-4xl font-bold text-slate-900">Vehicle Search</h1>
-            <p className="text-slate-600">{result.totalItems} matching vehicles in local demo dataset</p>
+            <p className="text-slate-600">{result.totalItems} matching vehicles in current dataset</p>
             <p className="mt-1 text-sm text-slate-500">
               Logged in as: <strong>{user}</strong>
             </p>

@@ -123,6 +123,50 @@
             "https://cdn05.carsforsale.com/00c12f4bc7ceff08090a6c83134a6a5731/800x600/2019-ford-f-250-super-duty-lariat-4x4-4dr-crew-cab-6-8-ft-sb-pickup.jpg"
           ]
         }
+      },
+      "marketcheck-77652425": {
+        "amountUsd": 2100,
+        "updatedAt": "2026-03-23T14:58:53.299Z",
+        "car": {
+          "id": "marketcheck-77652425",
+          "source": "marketcheck",
+          "lotNumber": "77652425",
+          "vin": "JM3KFBXY9P0133050",
+          "year": 2023,
+          "make": "Mazda",
+          "model": "CX-5",
+          "trim": "2023 Mazda CX-5, Signature | JM3KFBXY9P0133050 | BidCars",
+          "engine": "type",
+          "drivetrain": "Not provided",
+          "transmission": "Automatyczna",
+          "mileageKm": 0,
+          "location": "href",
+          "damage": "side",
+          "titleStatus": "meta name",
+          "sellerType": "Unknown",
+          "runAndDrive": true,
+          "hasKeys": false,
+          "auctionStatus": "span class",
+          "estimateMinUsd": 1045,
+          "estimateMaxUsd": 1320,
+          "currentBidUsd": 2100,
+          "imageUrl": "https://images.bid.cars/177652425_69bddfe9bde75/2023-Mazda-CX-5-JM3KFBXY9P0133050-1.jpg",
+          "imageUrls": [
+            "https://images.bid.cars/177652425_69bddfe9bde75/2023-Mazda-CX-5-JM3KFBXY9P0133050-1.jpg",
+            "https://images.bid.cars/177652425_69bddfe9bde75/2023-Mazda-CX-5-JM3KFBXY9P0133050-2.jpg",
+            "https://images.bid.cars/177652425_69bddfe9bde75/2023-Mazda-CX-5-JM3KFBXY9P0133050-3.jpg",
+            "https://images.bid.cars/177652425_69bddfe9bde75/2023-Mazda-CX-5-JM3KFBXY9P0133050-4.jpg",
+            "https://images.bid.cars/177652425_69bddfe9bde75/2023-Mazda-CX-5-JM3KFBXY9P0133050-5.jpg",
+            "https://images.bid.cars/177652425_69bddfe9bde75/2023-Mazda-CX-5-JM3KFBXY9P0133050-6.jpg",
+            "https://images.bid.cars/177652425_69bddfe9bde75/2023-Mazda-CX-5-JM3KFBXY9P0133050-7.jpg",
+            "https://images.bid.cars/177652425_69bddfe9bde75/2023-Mazda-CX-5-JM3KFBXY9P0133050-8.jpg",
+            "https://images.bid.cars/177652425_69bddfe9bde75/2023-Mazda-CX-5-JM3KFBXY9P0133050-9.jpg",
+            "https://images.bid.cars/177652425_69bddfe9bde75/2023-Mazda-CX-5-JM3KFBXY9P0133050-10.jpg",
+            "https://images.bid.cars/177652425_69bddfe9bde75/2023-Mazda-CX-5-JM3KFBXY9P0133050-11.jpg",
+            "https://images.bid.cars/177652425_69bddfe9bde75/2023-Mazda-CX-5-JM3KFBXY9P0133050-12.jpg",
+            "https://images.bid.cars/177652425_69bddfe9bde75/2023-Mazda-CX-5-JM3KFBXY9P0133050-13.jpg"
+          ]
+        }
       }
     }
   }

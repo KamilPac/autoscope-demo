@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans_Condensed, Space_Grotesk } from "next/font/google";
+import { AppBrandBanner } from "@/components/app-brand-banner";
 import "./globals.css";
 
 const headingFont = Space_Grotesk({
@@ -14,8 +15,8 @@ const bodyFont = IBM_Plex_Sans_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "AutoScope Demo",
-  description: "Local demo for searching US auction vehicles",
+  title: "AutoSearch",
+  description: "Auction vehicle search, lot details, watchlist, and bid planning",
 };
 
 export default function RootLayout({
@@ -26,7 +27,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body suppressHydrationWarning className={`${headingFont.variable} ${bodyFont.variable} antialiased`}>
-        {children}
+        <div className="min-h-screen">
+          <AppBrandBanner />
+          {children}
+        </div>
       </body>
     </html>
   );
