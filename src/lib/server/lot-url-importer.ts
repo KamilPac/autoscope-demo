@@ -1,4 +1,5 @@
 import { CarItem, DamageType } from "@/lib/types";
+import { filterVehicleImages } from "@/lib/vehicle-image-filter";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=1200&q=80";
@@ -310,13 +311,32 @@ function inferMileageKm(html: string) {
 }
 
 function inferBidUsd(html: string) {
-  const bidMatch = html.match(/(?:current\s+bid|bid)[^$0-9]{0,20}\$?\s*([0-9][0-9,\.]{1,12})/i);
+  const bidMatch = html.match(
+    /(?:current\s+bid|current_bid|high\s+bid|max\s+bid|bid\s+amount|winning\s+bid|bid)[^$0-9]{0,40}\$?\s*([0-9][0-9,\.]{1,12})/i,
+  );
   if (!bidMatch?.[1]) {
     return 0;
   }
 
   const amount = Number(bidMatch[1].replace(/[^0-9.]/g, ""));
   return Number.isFinite(amount) ? Math.round(amount) : 0;
+}
+
+function inferMoneyNearLabel(html: string, labels: string[]) {
+  for (const label of labels) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`${escaped}[^$0-9]{0,40}\\$?\\s*([0-9][0-9,\\.]{1,12})`, "i");
+    const match = html.match(pattern);
+
+    if (match?.[1]) {
+      const amount = Number(match[1].replace(/[^0-9.]/g, ""));
+      if (Number.isFinite(amount)) {
+        return Math.round(amount);
+      }
+    }
+  }
+
+  return null;
 }
 
 function inferLocation(html: string, url: URL) {
@@ -326,6 +346,25 @@ function inferLocation(html: string, url: URL) {
   }
 
   return url.hostname;
+}
+
+function inferValueByLabel(html: string, labels: string[], fallback: string) {
+  for (const label of labels) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`${escaped}[^A-Za-z0-9]{0,30}([A-Za-z0-9 ,\\-\\/.]{2,60})`, "i");
+    const match = html.match(pattern);
+
+    if (!match?.[1]) {
+      continue;
+    }
+
+    const candidate = normalizeSpaces(decodeHtmlEntities(match[1])).replace(/[:|].*$/, "").trim();
+    if (candidate.length >= 2) {
+      return candidate;
+    }
+  }
+
+  return fallback;
 }
 
 function inferTitleStatus(html: string) {
@@ -343,6 +382,78 @@ function inferRunAndDrive(html: string) {
 
 function inferHasKeys(html: string) {
   return /\b(has\s+keys|keys\s*:\s*yes)\b/i.test(html);
+}
+
+function absoluteUrlOrNull(value: string, baseUrl: URL) {
+  try {
+    const normalized = new URL(value, baseUrl);
+    if (!/^https?:$/i.test(normalized.protocol)) {
+      return null;
+    }
+    return normalized.toString();
+  } catch {
+    return null;
+  }
+}
+
+function shouldSkipImage(url: string) {
+  const lowered = url.toLowerCase();
+
+  return (
+    lowered.includes("logo") ||
+    lowered.includes("icon") ||
+    lowered.includes("sprite") ||
+    lowered.includes("avatar") ||
+    lowered.includes("placeholder") ||
+    lowered.includes("1x1")
+  );
+}
+
+function extractImageUrls(html: string, url: URL) {
+  const found = new Set<string>();
+
+  const metaCandidates = [
+    extractMetaContent(html, "og:image"),
+    extractMetaContent(html, "twitter:image"),
+    extractMetaContent(html, "twitter:image:src"),
+  ].filter((value): value is string => Boolean(value));
+
+  for (const item of metaCandidates) {
+    const absolute = absoluteUrlOrNull(item, url);
+    if (absolute && !shouldSkipImage(absolute)) {
+      found.add(absolute);
+    }
+  }
+
+  const attributePattern = /(src|data-src|data-lazy|data-original|data-image|content)=["']([^"']+\.(?:jpg|jpeg|png|webp)(?:\?[^"']*)?)["']/gi;
+  for (const match of html.matchAll(attributePattern)) {
+    const candidate = match[2];
+    const absolute = absoluteUrlOrNull(candidate, url);
+    if (absolute && !shouldSkipImage(absolute)) {
+      found.add(absolute);
+    }
+  }
+
+  const absolutePattern = /https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>]*)?/gi;
+  for (const match of html.matchAll(absolutePattern)) {
+    const candidate = match[0];
+    if (!shouldSkipImage(candidate)) {
+      found.add(candidate);
+    }
+  }
+
+  const jsonPhotoPattern = /"(?:photo_links_cached|photo_links|images|imageUrls|gallery|photos)"\s*:\s*\[(.*?)\]/gis;
+  for (const block of html.matchAll(jsonPhotoPattern)) {
+    const rawBlock = block[1] ?? "";
+    for (const imageMatch of rawBlock.matchAll(/"(https?:\\\/\\\/[^"\\]+(?:\\\/[^"\\]+)*\.(?:jpg|jpeg|png|webp)(?:\\\?[^"\\]+)?)"/gi)) {
+      const decoded = imageMatch[1].replace(/\\\//g, "/");
+      if (!shouldSkipImage(decoded)) {
+        found.add(decoded);
+      }
+    }
+  }
+
+  return [...found];
 }
 
 function inferImageUrl(html: string) {
@@ -425,8 +536,23 @@ export async function importLotFromUrl(rawUrl: string): Promise<ImportedLotPaylo
   const makeModel = inferMakeModel(pageTitle);
   const mileageKm = inferMileageKm(html);
   const currentBidUsd = inferBidUsd(html);
-  const imageUrl = jsonLdVehicle.imageUrl ?? inferImageUrl(html);
+  const estimateMin = inferMoneyNearLabel(html, ["estimate min", "min estimate", "starting bid", "opening bid"]);
+  const estimateMax = inferMoneyNearLabel(html, ["estimate max", "max estimate", "buy now", "retail value", "estimated retail value"]);
+  const rawImages = extractImageUrls(html, parsedUrl);
+  const preliminaryImage = rawImages[0] ?? jsonLdVehicle.imageUrl ?? inferImageUrl(html);
+  const imageUrls = filterVehicleImages(rawImages.length > 0 ? rawImages : [preliminaryImage], {
+    id: `${source}-${lotNumber}`,
+    vin,
+    lotNumber,
+    imageUrl: preliminaryImage,
+  });
+  const imageUrl = imageUrls[0] ?? preliminaryImage;
   const limitedAccess = detectLimitedAccess(html);
+  const transmission = inferValueByLabel(html, ["transmission", "gearbox"], "AT");
+  const drivetrain = inferValueByLabel(html, ["drivetrain", "drive type", "drive train"], "Not provided");
+  const engine = inferValueByLabel(html, ["engine", "motor", "cylinders", "powertrain"], "Not provided");
+  const sellerType = inferValueByLabel(html, ["seller type", "seller", "sale type"], "Unknown");
+  const titleStatus = inferTitleStatus(html);
 
   const lot: CarItem = {
     id: `${source}-${lotNumber}`,
@@ -437,21 +563,21 @@ export async function importLotFromUrl(rawUrl: string): Promise<ImportedLotPaylo
     make: jsonLdVehicle.make ?? urlVehicle.make ?? makeModel.make,
     model: jsonLdVehicle.model ?? urlVehicle.model ?? makeModel.model,
     trim: jsonLdVehicle.trim ?? urlVehicle.trim ?? (limitedAccess ? "Imported (limited data)" : makeModel.trim),
-    engine: "Not provided",
-    drivetrain: "Not provided",
-    transmission: "AT",
+    engine,
+    drivetrain,
+    transmission,
     mileageKm,
     location: inferLocation(html, parsedUrl),
     damage: inferDamage(html),
-    titleStatus: inferTitleStatus(html),
-    sellerType: "Unknown",
+    titleStatus,
+    sellerType,
     runAndDrive: inferRunAndDrive(html),
     hasKeys: inferHasKeys(html),
-    estimateMinUsd: currentBidUsd > 0 ? Math.round(currentBidUsd * 0.95) : 0,
-    estimateMaxUsd: currentBidUsd > 0 ? Math.round(currentBidUsd * 1.2) : 0,
+    estimateMinUsd: estimateMin ?? (currentBidUsd > 0 ? Math.round(currentBidUsd * 0.95) : 0),
+    estimateMaxUsd: estimateMax ?? (currentBidUsd > 0 ? Math.round(currentBidUsd * 1.2) : 0),
     currentBidUsd,
     imageUrl,
-    imageUrls: [imageUrl],
+    imageUrls,
   };
 
   const sparseData =

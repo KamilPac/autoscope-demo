@@ -65,7 +65,10 @@ export default function ImportLotPage() {
       const payload = (await response.json()) as ImportResult;
 
       if (!response.ok) {
-        setResult({ message: payload.message, error: payload.error ?? "Unknown error" });
+        setResult({
+          message: payload.message || "Import failed",
+          error: payload.error,
+        });
         return;
       }
 

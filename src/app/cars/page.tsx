@@ -40,6 +40,9 @@ export default async function CarsPage({
             <p className="text-xs uppercase tracking-[0.14em] text-slate-600">AutoScope Demo</p>
             <h1 className="font-heading text-4xl font-bold text-slate-900">Vehicle Search</h1>
             <p className="text-slate-600">{result.totalItems} matching vehicles in local demo dataset</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Logged in as: <strong>{user}</strong>
+            </p>
           </div>
 
           <div className="flex gap-2">

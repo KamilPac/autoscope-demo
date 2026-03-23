@@ -20,11 +20,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/cars", request.url));
   }
 
-  const adminOnlyPath =
-    pathname === "/import-lot" ||
-    pathname.startsWith("/import-lot/") ||
-    pathname === "/panel/admin-cars" ||
-    pathname.startsWith("/panel/admin-cars/");
+  const adminOnlyPath = pathname === "/panel/admin-cars" || pathname.startsWith("/panel/admin-cars/");
   if (adminOnlyPath && role !== "admin") {
     return NextResponse.redirect(new URL("/panel", request.url));
   }
