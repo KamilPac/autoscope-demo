@@ -31,6 +31,7 @@ export type CarItem = {
   sellerType: string;
   runAndDrive: boolean;
   hasKeys: boolean;
+  auctionStatus?: string;
   estimateMinUsd: number;
   estimateMaxUsd: number;
   currentBidUsd: number;

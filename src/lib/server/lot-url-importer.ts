@@ -137,6 +137,61 @@ function decodeHtmlEntities(value: string) {
     .replace(/&nbsp;/g, " ");
 }
 
+function normalizeLabelKey(value: string) {
+  return decodeHtmlEntities(value)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractLabeledFields(html: string) {
+  const fields = new Map<string, string>();
+  const pattern = /<span[^>]*title=["']([^"']+)["'][^>]*>[\s\S]*?<\/span>\s*<div[^>]*title=["']([^"']*)["']/gi;
+
+  for (const match of html.matchAll(pattern)) {
+    const labelRaw = match[1];
+    const valueRaw = match[2];
+
+    const label = normalizeLabelKey(labelRaw);
+    const value = normalizeSpaces(decodeHtmlEntities(valueRaw));
+
+    if (!label || !value) {
+      continue;
+    }
+
+    fields.set(label, value);
+  }
+
+  return fields;
+}
+
+function fieldFromMap(fields: Map<string, string>, labels: string[]) {
+  for (const label of labels) {
+    const key = normalizeLabelKey(label);
+    const value = fields.get(key);
+    if (value) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function hasToken(text: string, token: string | undefined) {
+  if (!token) {
+    return false;
+  }
+
+  const normalized = token.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  return text.toLowerCase().includes(normalized);
+}
+
 function extractMetaContent(html: string, metaName: string) {
   const escaped = metaName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const patternA = new RegExp(
@@ -291,12 +346,65 @@ function inferDamage(html: string): DamageType {
   return "normal_wear";
 }
 
+function inferDamageFromText(value: string | null): DamageType | null {
+  if (!value) {
+    return null;
+  }
+
+  const lowered = normalizeLabelKey(value);
+
+  if (lowered.includes("przod") || lowered.includes("front")) {
+    return "front_end";
+  }
+
+  if (lowered.includes("tyl") || lowered.includes("rear")) {
+    return "rear_end";
+  }
+
+  if (lowered.includes("bok") || lowered.includes("side")) {
+    return "side";
+  }
+
+  if (lowered.includes("rollover")) {
+    return "rollover";
+  }
+
+  if (lowered.includes("hail")) {
+    return "hail";
+  }
+
+  if (lowered.includes("mechanical") || lowered.includes("mechanic")) {
+    return "mechanical";
+  }
+
+  return null;
+}
+
 function inferYear(title: string) {
   const match = title.match(/\b(19\d{2}|20\d{2})\b/);
   return match?.[1] ? Number(match[1]) : 2000;
 }
 
-function inferMileageKm(html: string) {
+function inferMileageKm(html: string, fields?: Map<string, string>) {
+  const fromField = fields ? fieldFromMap(fields, ["Przebieg", "Mileage", "Odometer"]) : null;
+  if (fromField) {
+    const kmMatch = fromField.match(/([0-9][0-9\s,.]{1,12})\s*km/i);
+    if (kmMatch?.[1]) {
+      const km = Number(kmMatch[1].replace(/[^0-9]/g, ""));
+      if (Number.isFinite(km) && km > 0) {
+        return km;
+      }
+    }
+
+    const mileMatch = fromField.match(/([0-9][0-9\s,.]{1,12})\s*mi/i);
+    if (mileMatch?.[1]) {
+      const miles = Number(mileMatch[1].replace(/[^0-9]/g, ""));
+      if (Number.isFinite(miles) && miles > 0) {
+        return Math.round(miles * 1.60934);
+      }
+    }
+  }
+
   const mileageMatch = html.match(/(?:odometer|mileage)[^0-9]{0,30}([0-9][0-9,\.]{1,10})/i);
   if (!mileageMatch?.[1]) {
     return 0;
@@ -310,10 +418,19 @@ function inferMileageKm(html: string) {
   return Math.round(miles * 1.60934);
 }
 
-function inferBidUsd(html: string) {
-  const bidMatch = html.match(
-    /(?:current\s+bid|current_bid|high\s+bid|max\s+bid|bid\s+amount|winning\s+bid|bid)[^$0-9]{0,40}\$?\s*([0-9][0-9,\.]{1,12})/i,
-  );
+function inferBidUsd(html: string, fields?: Map<string, string>) {
+  const fromField = fields
+    ? fieldFromMap(fields, ["Current bid", "Current price", "Aktualna licytacja", "Aktualna oferta", "Winning bid"])
+    : null;
+
+  if (fromField) {
+    const amount = Number(fromField.replace(/[^0-9.]/g, ""));
+    if (Number.isFinite(amount)) {
+      return Math.round(amount);
+    }
+  }
+
+  const bidMatch = html.match(/(?:current\s+bid|current_bid|high\s+bid|max\s+bid|winning\s+bid)[^$0-9]{0,40}\$?\s*([0-9][0-9,\.]{1,12})/i);
   if (!bidMatch?.[1]) {
     return 0;
   }
@@ -322,7 +439,21 @@ function inferBidUsd(html: string) {
   return Number.isFinite(amount) ? Math.round(amount) : 0;
 }
 
-function inferMoneyNearLabel(html: string, labels: string[]) {
+function inferMoneyNearLabel(html: string, labels: string[], fields?: Map<string, string>) {
+  if (fields) {
+    const fieldValue = fieldFromMap(fields, labels);
+    if (fieldValue) {
+      const values = [...fieldValue.matchAll(/([0-9][0-9\s,.]{1,12})\s*\$/g)].map((match) =>
+        Number(match[1].replace(/[^0-9]/g, "")),
+      );
+
+      const normalized = values.filter((value) => Number.isFinite(value));
+      if (normalized.length > 0) {
+        return Math.round(normalized[0]);
+      }
+    }
+  }
+
   for (const label of labels) {
     const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const pattern = new RegExp(`${escaped}[^$0-9]{0,40}\\$?\\s*([0-9][0-9,\\.]{1,12})`, "i");
@@ -339,6 +470,22 @@ function inferMoneyNearLabel(html: string, labels: string[]) {
   return null;
 }
 
+function inferAcvErc(fields: Map<string, string>) {
+  const value = fieldFromMap(fields, ["ACV • ERC", "ACV/ERC", "ACV ERC"]);
+  if (!value) {
+    return { acv: null, erc: null };
+  }
+
+  const amounts = [...value.matchAll(/([0-9][0-9\s,.]{1,12})\s*\$/g)]
+    .map((match) => Number(match[1].replace(/[^0-9]/g, "")))
+    .filter((amount) => Number.isFinite(amount));
+
+  return {
+    acv: amounts[0] ?? null,
+    erc: amounts[1] ?? null,
+  };
+}
+
 function inferLocation(html: string, url: URL) {
   const locationMatch = html.match(/(?:location|yard|branch)[^A-Za-z0-9]{0,20}([A-Za-z0-9 ,.-]{4,60})/i);
   if (locationMatch?.[1]) {
@@ -346,6 +493,15 @@ function inferLocation(html: string, url: URL) {
   }
 
   return url.hostname;
+}
+
+function inferLocationWithFields(html: string, url: URL, fields?: Map<string, string>) {
+  const fromField = fields ? fieldFromMap(fields, ["Lokalizacja", "Location", "Yard", "Branch"]) : null;
+  if (fromField) {
+    return fromField;
+  }
+
+  return inferLocation(html, url);
 }
 
 function inferValueByLabel(html: string, labels: string[], fallback: string) {
@@ -382,6 +538,38 @@ function inferRunAndDrive(html: string) {
 
 function inferHasKeys(html: string) {
   return /\b(has\s+keys|keys\s*:\s*yes)\b/i.test(html);
+}
+
+function inferHasKeysWithFields(html: string, fields?: Map<string, string>) {
+  const fromField = fields ? fieldFromMap(fields, ["Klucz dostępny", "Klucz dostepny", "Has keys", "Keys"]) : null;
+  if (fromField) {
+    return /tak|yes|available|1/i.test(normalizeLabelKey(fromField));
+  }
+
+  return inferHasKeys(html);
+}
+
+function inferRunAndDriveWithFields(html: string, fields?: Map<string, string>) {
+  const fromField = fields ? fieldFromMap(fields, ["Stan", "Condition", "Status"]) : null;
+  if (fromField) {
+    return /odpala|run|drive|rusza/i.test(normalizeLabelKey(fromField));
+  }
+
+  return inferRunAndDrive(html);
+}
+
+function inferAuctionStatus(html: string, fields?: Map<string, string>) {
+  const fromField = fields ? fieldFromMap(fields, ["Status sprzedaży", "Status sprzedazy", "Sale status"]) : null;
+  if (fromField) {
+    return fromField;
+  }
+
+  const match = html.match(/(?:sale\s+status|status\s+sprzed[aą]?[żz]y)[^A-Za-z0-9]{0,25}([A-Za-z\s]+)/i);
+  if (match?.[1]) {
+    return normalizeSpaces(match[1]);
+  }
+
+  return undefined;
 }
 
 function absoluteUrlOrNull(value: string, baseUrl: URL) {
@@ -526,6 +714,7 @@ export async function importLotFromUrl(rawUrl: string): Promise<ImportedLotPaylo
   }
 
   const html = await response.text();
+  const labeledFields = extractLabeledFields(html);
   const pageTitle =
     extractMetaContent(html, "og:title") ?? extractMetaContent(html, "twitter:title") ?? extractTitle(html);
   const jsonLdVehicle = vehicleFromJsonLd(html);
@@ -534,13 +723,29 @@ export async function importLotFromUrl(rawUrl: string): Promise<ImportedLotPaylo
   const lotNumber = extractLotNumber(parsedUrl, html);
   const vin = extractVin(html) !== "UNKNOWNVIN0000000" ? extractVin(html) : (extractVinFromUrl(parsedUrl) ?? "UNKNOWNVIN0000000");
   const makeModel = inferMakeModel(pageTitle);
-  const mileageKm = inferMileageKm(html);
-  const currentBidUsd = inferBidUsd(html);
-  const estimateMin = inferMoneyNearLabel(html, ["estimate min", "min estimate", "starting bid", "opening bid"]);
-  const estimateMax = inferMoneyNearLabel(html, ["estimate max", "max estimate", "buy now", "retail value", "estimated retail value"]);
+  const mileageKm = inferMileageKm(html, labeledFields);
+  const auctionStatus = inferAuctionStatus(html, labeledFields);
+  const isSold = auctionStatus ? /sprzedan|sold/i.test(normalizeLabelKey(auctionStatus)) : false;
+  const parsedBid = inferBidUsd(html, labeledFields);
+  const lotAsNumber = Number(lotNumber);
+  const currentBidUsd = isSold || (!Number.isNaN(lotAsNumber) && parsedBid === lotAsNumber) ? 0 : parsedBid;
+  const acvErc = inferAcvErc(labeledFields);
+  const estimateMin =
+    acvErc.acv ??
+    inferMoneyNearLabel(html, ["estimate min", "min estimate", "starting bid", "opening bid"], labeledFields) ??
+    null;
+  const estimateMax =
+    acvErc.erc ??
+    inferMoneyNearLabel(html, ["estimate max", "max estimate", "buy now", "retail value", "estimated retail value"], labeledFields) ??
+    null;
   const rawImages = extractImageUrls(html, parsedUrl);
+  const lotScopedImages = rawImages.filter((item) => {
+    const decoded = decodeURIComponent(item);
+    return hasToken(item, lotNumber) || hasToken(decoded, lotNumber) || hasToken(item, vin) || hasToken(decoded, vin);
+  });
+  const sourceImages = lotScopedImages.length >= 3 ? lotScopedImages : rawImages;
   const preliminaryImage = rawImages[0] ?? jsonLdVehicle.imageUrl ?? inferImageUrl(html);
-  const imageUrls = filterVehicleImages(rawImages.length > 0 ? rawImages : [preliminaryImage], {
+  const imageUrls = filterVehicleImages(sourceImages.length > 0 ? sourceImages : [preliminaryImage], {
     id: `${source}-${lotNumber}`,
     vin,
     lotNumber,
@@ -548,11 +753,26 @@ export async function importLotFromUrl(rawUrl: string): Promise<ImportedLotPaylo
   });
   const imageUrl = imageUrls[0] ?? preliminaryImage;
   const limitedAccess = detectLimitedAccess(html);
-  const transmission = inferValueByLabel(html, ["transmission", "gearbox"], "AT");
-  const drivetrain = inferValueByLabel(html, ["drivetrain", "drive type", "drive train"], "Not provided");
-  const engine = inferValueByLabel(html, ["engine", "motor", "cylinders", "powertrain"], "Not provided");
-  const sellerType = inferValueByLabel(html, ["seller type", "seller", "sale type"], "Unknown");
-  const titleStatus = inferTitleStatus(html);
+  const driveInfo = fieldFromMap(labeledFields, ["Napęd", "Naped", "Powertrain"]);
+  const driveParts = driveInfo ? driveInfo.split("•").map((part) => normalizeSpaces(part)) : [];
+  const transmission =
+    driveParts.find((part) => /\bat\b|\bmt\b|automatic|manual|cvt|dct/i.test(part)) ??
+    inferValueByLabel(html, ["transmission", "gearbox"], "AT");
+  const drivetrain =
+    driveParts.find((part) => /4x4|awd|fwd|rwd/i.test(part)) ?? inferValueByLabel(html, ["drivetrain", "drive type", "drive train"], "Not provided");
+  const engine =
+    driveParts
+      .filter((part) => !/4x4|awd|fwd|rwd|\bat\b|\bmt\b|automatic|manual|cvt|dct/i.test(part))
+      .join(" • ") || inferValueByLabel(html, ["engine", "motor", "cylinders", "powertrain"], "Not provided");
+  const sellerType =
+    fieldFromMap(labeledFields, ["Typ sprzedawcy", "Sprzedawca", "Seller type", "Seller", "Sale type"]) ??
+    inferValueByLabel(html, ["seller type", "seller", "sale type"], "Unknown");
+  const documentType = fieldFromMap(labeledFields, ["Typ dokumentu", "Document type", "Title type"]);
+  const documentStatus = fieldFromMap(labeledFields, ["Status dokumentów", "Status dokumentow", "Document status", "Title status"]);
+  const titleStatus = [documentType, documentStatus].filter(Boolean).join(" • ") || inferTitleStatus(html);
+  const mainDamage = inferDamageFromText(fieldFromMap(labeledFields, ["Uszkodzenie główne", "Uszkodzenie glowne", "Primary damage"]));
+  const secondaryDamage = inferDamageFromText(fieldFromMap(labeledFields, ["Uszkodzenie dodatkowe", "Secondary damage"]));
+  const damage = mainDamage ?? secondaryDamage ?? inferDamage(html);
 
   const lot: CarItem = {
     id: `${source}-${lotNumber}`,
@@ -567,12 +787,13 @@ export async function importLotFromUrl(rawUrl: string): Promise<ImportedLotPaylo
     drivetrain,
     transmission,
     mileageKm,
-    location: inferLocation(html, parsedUrl),
-    damage: inferDamage(html),
+    location: inferLocationWithFields(html, parsedUrl, labeledFields),
+    damage,
     titleStatus,
     sellerType,
-    runAndDrive: inferRunAndDrive(html),
-    hasKeys: inferHasKeys(html),
+    runAndDrive: inferRunAndDriveWithFields(html, labeledFields),
+    hasKeys: inferHasKeysWithFields(html, labeledFields),
+    auctionStatus,
     estimateMinUsd: estimateMin ?? (currentBidUsd > 0 ? Math.round(currentBidUsd * 0.95) : 0),
     estimateMaxUsd: estimateMax ?? (currentBidUsd > 0 ? Math.round(currentBidUsd * 1.2) : 0),
     currentBidUsd,

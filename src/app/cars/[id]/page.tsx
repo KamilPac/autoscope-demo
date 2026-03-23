@@ -58,6 +58,7 @@ export default async function CarDetailsPage({ params, searchParams }: PageProps
   const userMaxBid = currentUser ? await getUserMaxBid(currentUser, car.id) : null;
   const effectiveMaxBid = userMaxBid ?? car.currentBidUsd;
   const effectiveCurrentBid = userMaxBid ?? car.currentBidUsd;
+  const isAuctionClosed = car.auctionStatus ? /sprzedan|sold|closed|ended/i.test(car.auctionStatus.toLowerCase()) : false;
 
   async function handleWatch() {
     "use server";
@@ -157,6 +158,11 @@ export default async function CarDetailsPage({ params, searchParams }: PageProps
                 {car.year} {car.make} {car.model}
               </h1>
               <p className="text-lg text-slate-600">{car.trim}</p>
+              {car.auctionStatus ? (
+                <p className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${isAuctionClosed ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"}`}>
+                  Auction status: {car.auctionStatus}
+                </p>
+              ) : null}
               <div className="mt-4">
                 {isWatched ? (
                   <form action={handleUnwatch}>
@@ -229,52 +235,58 @@ export default async function CarDetailsPage({ params, searchParams }: PageProps
               <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3">
                 <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Your max bid</p>
                 <p className="mt-1 text-2xl font-bold text-slate-900">{formatUsd(effectiveMaxBid)}</p>
-                <p className="mt-1 text-xs text-slate-500">Use +/- with selected step or set exact amount.</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {isAuctionClosed ? "Bidding is locked because this vehicle is sold/closed." : "Use +/- with selected step or set exact amount."}
+                </p>
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {BID_STEP_OPTIONS_USD.map((step) => (
-                    <form action={handleAdjustMaxBid} className="flex items-center gap-1" key={`step-${step}`}>
-                      <input name="step" type="hidden" value={String(step)} />
+                {!isAuctionClosed ? (
+                  <>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {BID_STEP_OPTIONS_USD.map((step) => (
+                        <form action={handleAdjustMaxBid} className="flex items-center gap-1" key={`step-${step}`}>
+                          <input name="step" type="hidden" value={String(step)} />
+                          <button
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                            name="direction"
+                            value="minus"
+                            type="submit"
+                          >
+                            -{formatUsd(step)}
+                          </button>
+                          <button
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                            name="direction"
+                            value="plus"
+                            type="submit"
+                          >
+                            +{formatUsd(step)}
+                          </button>
+                        </form>
+                      ))}
+                    </div>
+
+                    <form action={handleSetMaxBid} className="mt-3 flex flex-wrap items-center gap-2">
+                      <label className="text-xs font-medium text-slate-600" htmlFor="maxBidInput">
+                        Set amount
+                      </label>
+                      <input
+                        className="w-40 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900"
+                        defaultValue={String(effectiveMaxBid)}
+                        id="maxBidInput"
+                        min="0"
+                        name="maxBid"
+                        step="100"
+                        type="number"
+                      />
                       <button
-                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
-                        name="direction"
-                        value="minus"
+                        className="rounded-lg border border-teal-300 bg-teal-50 px-3 py-1.5 text-sm font-semibold text-teal-900 hover:bg-teal-100"
                         type="submit"
                       >
-                        -{formatUsd(step)}
-                      </button>
-                      <button
-                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
-                        name="direction"
-                        value="plus"
-                        type="submit"
-                      >
-                        +{formatUsd(step)}
+                        Save amount
                       </button>
                     </form>
-                  ))}
-                </div>
-
-                <form action={handleSetMaxBid} className="mt-3 flex flex-wrap items-center gap-2">
-                  <label className="text-xs font-medium text-slate-600" htmlFor="maxBidInput">
-                    Set amount
-                  </label>
-                  <input
-                    className="w-40 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900"
-                    defaultValue={String(effectiveMaxBid)}
-                    id="maxBidInput"
-                    min="0"
-                    name="maxBid"
-                    step="100"
-                    type="number"
-                  />
-                  <button
-                    className="rounded-lg border border-teal-300 bg-teal-50 px-3 py-1.5 text-sm font-semibold text-teal-900 hover:bg-teal-100"
-                    type="submit"
-                  >
-                    Save amount
-                  </button>
-                </form>
+                  </>
+                ) : null}
               </div>
             </div>
           </div>
