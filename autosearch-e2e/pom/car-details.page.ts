@@ -17,6 +17,10 @@ export class CarDetailsPage {
     await expect(this.page.getByRole("button", { name: "Remove from observed" })).toBeVisible();
   }
 
+  async expectObserveButtonVisible() {
+    await expect(this.page.getByRole("button", { name: "Observe this car" })).toBeVisible();
+  }
+
   async setMaxBid(value: number) {
     await this.page.locator("#maxBidInput").fill(String(value));
     await this.page.getByRole("button", { name: "Save amount" }).click();

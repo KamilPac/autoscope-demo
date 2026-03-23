@@ -42,11 +42,71 @@ jobs:
           APP_WEB_DIR: ${{ github.workspace }}
         run: npm run test:p0
 
+      - name: Publish P0 pass-rate summary
+        if: always()
+        working-directory: autosearch-e2e
+        run: |
+          if npm run report:p0:passrate > p0-pass-rate.txt 2>&1; then
+            true
+          else
+            true
+          fi
+          {
+            echo "### P0 pass rate"
+            echo ""
+            cat p0-pass-rate.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload Playwright artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-artifacts-p0
+          path: |
+            autosearch-e2e/playwright-report
+            autosearch-e2e/test-results
+          retention-days: 7
+
+  e2e-mobile-smoke:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            autosearch-e2e/package-lock.json
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Install e2e dependencies
+        working-directory: autosearch-e2e
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: autosearch-e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run mobile smoke suite
+        working-directory: autosearch-e2e
+        env:
+          CI: true
+          APP_WEB_DIR: ${{ github.workspace }}
+        run: npm run test:mobile:smoke
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts-mobile-smoke
           path: |
             autosearch-e2e/playwright-report
             autosearch-e2e/test-results
@@ -95,4 +155,65 @@ jobs:
           path: |
             autosearch-e2e/playwright-report
             autosearch-e2e/test-results
+          retention-days: 14
+
+  e2e-nightly-p0-stability:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            autosearch-e2e/package-lock.json
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Install e2e dependencies
+        working-directory: autosearch-e2e
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: autosearch-e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run P0 stability gate (repeat + threshold)
+        id: p0_stability
+        working-directory: autosearch-e2e
+        env:
+          CI: true
+          APP_WEB_DIR: ${{ github.workspace }}
+        run: npm run qa:p0:stability | tee p0-stability.txt
+
+      - name: Publish nightly P0 stability summary
+        if: always()
+        working-directory: autosearch-e2e
+        run: |
+          {
+            echo "### Nightly P0 stability"
+            echo ""
+            if [ -f p0-stability.txt ]; then
+              cat p0-stability.txt
+            else
+              echo "No stability output generated."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts-nightly-p0-stability
+          path: |
+            autosearch-e2e/playwright-report
+            autosearch-e2e/test-results
+            autosearch-e2e/p0-stability.txt
           retention-days: 14

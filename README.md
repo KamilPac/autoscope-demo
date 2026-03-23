@@ -127,9 +127,12 @@ Workflow file:
 - `.github/workflows/playwright-e2e.yml`
 
 When tests run:
-- On pull requests: job `e2e-p0` runs critical scenarios only.
-- On manual trigger (`workflow_dispatch`): job `e2e-p0` runs.
-- On nightly schedule: job `e2e-nightly-full` runs the full suite.
+- On pull requests: jobs `e2e-p0` and `e2e-mobile-smoke` run.
+- On manual trigger (`workflow_dispatch`): jobs `e2e-p0` and `e2e-mobile-smoke` run.
+- On nightly schedule: jobs `e2e-nightly-full` and `e2e-nightly-p0-stability` run.
+
+Notes:
+- P0 pass rate is published in GitHub Actions Job Summary.
 
 How to run manually in GitHub:
 1. Open repository tab `Actions`.
@@ -145,7 +148,24 @@ Where to find results:
 Equivalent local commands (from `autosearch-e2e`):
 - `npm run test:p0`
 - `npm run test:p1`
+- `npm run test:p2`
+- `npm run test:mobile:smoke`
 - `npm run test:all`
+- `npm run report:p0:passrate`
+- `npm run qa:p0:stability`
+
+P0 scope includes observed removal regression (`observe-remove.spec.ts`) in addition to auth/search/bid/import core checks.
+
+Branch protection checklist (GitHub):
+1. Open repository settings: `Settings -> Branches -> Branch protection rules`.
+2. Add or edit rule for your main branch.
+3. Enable `Require status checks to pass before merging`.
+4. Mark these checks as required:
+	- `e2e-p0`
+	- `e2e-mobile-smoke`
+5. Optional recommended checks for stricter policy:
+	- `e2e-nightly-full` (monitoring only; usually not required for PR merge)
+	- `e2e-nightly-p0-stability` (monitoring only; usually not required for PR merge)
 
 ## Next steps
 

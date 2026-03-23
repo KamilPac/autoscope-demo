@@ -16,8 +16,11 @@ Przykladowe komendy:
 - npm run test:p0
 - npm run test:p1
 - npm run test:p2
+- npm run test:mobile:smoke
 - npm run test:all
 - npm run test:p0:repeat20
+- npm run report:p0:passrate
+- npm run qa:p0:stability
 
 ## Zmienne opcjonalne
 
@@ -34,6 +37,7 @@ Przykladowe komendy:
   - login/logout
   - search -> details -> back
   - observe + bid flow
+  - remove from observed + empty state
   - import lot (stub API dla stabilnosci)
 
 ## CI/CD
@@ -44,11 +48,24 @@ Workflow GitHub Actions jest w:
 
 Zasada uruchamiania:
 
-- pull request i workflow_dispatch: uruchamiany pakiet P0
-- nightly (schedule): uruchamiany pelny pakiet testow
+- pull request i workflow_dispatch: uruchamiany pakiet P0 oraz mobile smoke
+- nightly (schedule): uruchamiany pelny pakiet testow oraz gate stabilnosci P0
 
 ## Stabilizacja i jakosc
 
 - Do okresowej kontroli flakiness uruchamiaj: npm run test:p0:repeat20
+- Aby policzyc pass rate z raportu junit.xml uruchamiaj: npm run report:p0:passrate
+- Pelny gate (repeat + prog 95%) uruchamiaj: npm run qa:p0:stability
 - Minimalny cel z planu QA: pass rate P0 >= 95% na 20 kolejnych uruchomieniach
 - Raporty CI zawieraja HTML, trace/screenshot/video oraz junit.xml
+- Pass rate P0 jest publikowany w Job Summary workflow
+
+## Branch protection (zalecenie)
+
+Docelowe required checks na PR:
+- e2e-p0
+- e2e-mobile-smoke
+
+Nightly jobs traktuj jako monitoring, nie jako required check do merge:
+- e2e-nightly-full
+- e2e-nightly-p0-stability

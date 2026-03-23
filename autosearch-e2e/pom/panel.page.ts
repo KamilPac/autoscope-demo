@@ -39,6 +39,14 @@ export class PanelPage {
     await expect(this.page.getByRole("link", { name: "Open details" }).first()).toBeVisible();
   }
 
+  async removeFirstObservedEntry() {
+    await this.page.getByRole("button", { name: "Remove" }).first().click();
+  }
+
+  async expectObservedTabEmpty() {
+    await expect(this.page.getByText("No observed cars yet.")).toBeVisible();
+  }
+
   async expectBidsTabHasAmount(formattedValue: string) {
     await expect(this.page.getByRole("heading", { name: "Bidding plan" })).toBeVisible();
     await expect(this.page.getByText(`Your max bid: ${formattedValue}`)).toBeVisible();
