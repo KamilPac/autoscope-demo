@@ -8,6 +8,7 @@
     "test:p1": "playwright test tests/panel/profile-settings.spec.ts tests/panel/change-password.spec.ts tests/cars/sold-lock.spec.ts tests/import/import-lot-error.spec.ts tests/panel/panel-tabs.spec.ts tests/admin/admin-access.spec.ts",
     "test:p2": "playwright test tests/admin/admin-delete-car.spec.ts tests/cars/image-dedup.spec.ts tests/cars/filter-sort-pagination.spec.ts tests/responsive/mobile-core-flows.spec.ts tests/panel/observed-multi.spec.ts",
     "test:mobile:smoke": "playwright test tests/responsive/mobile-core-flows.spec.ts",
+    "test:import:external-smoke": "playwright test tests/import/import-external-nightly.spec.ts",
     "test:p0:repeat20": "npm run test:p0 -- --repeat-each 20",
     "report:p0:passrate": "node scripts/p0-pass-rate.mjs 95",
     "qa:p0:stability": "npm run test:p0:repeat20 && npm run report:p0:passrate",

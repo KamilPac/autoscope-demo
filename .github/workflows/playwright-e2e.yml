@@ -217,3 +217,49 @@ jobs:
             autosearch-e2e/test-results
             autosearch-e2e/p0-stability.txt
           retention-days: 14
+
+  e2e-nightly-external-import-smoke:
+    if: github.event_name == 'schedule' && secrets.EXTERNAL_IMPORT_SMOKE_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            autosearch-e2e/package-lock.json
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Install e2e dependencies
+        working-directory: autosearch-e2e
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: autosearch-e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run external import smoke suite
+        working-directory: autosearch-e2e
+        env:
+          CI: true
+          APP_WEB_DIR: ${{ github.workspace }}
+          EXTERNAL_IMPORT_SMOKE_URL: ${{ secrets.EXTERNAL_IMPORT_SMOKE_URL }}
+        run: npm run test:import:external-smoke
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts-nightly-external-import-smoke
+          path: |
+            autosearch-e2e/playwright-report
+            autosearch-e2e/test-results
+          retention-days: 14

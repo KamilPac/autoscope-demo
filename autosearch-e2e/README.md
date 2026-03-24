@@ -20,6 +20,7 @@ Przykladowe komendy:
 - npm run test:p1
 - npm run test:p2
 - npm run test:mobile:smoke
+- npm run test:import:external-smoke
 - npm run test:all
 - npm run test:p0:repeat20
 - npm run report:p0:passrate
@@ -57,6 +58,19 @@ Zasada uruchamiania:
 
 - pull request i workflow_dispatch: uruchamiany pakiet P0 oraz mobile smoke
 - nightly (schedule): uruchamiany pelny pakiet testow oraz gate stabilnosci P0
+- nightly external import smoke: uruchamiany tylko gdy ustawisz secret `EXTERNAL_IMPORT_SMOKE_URL`
+
+Konfiguracja secretu dla nightly external import smoke:
+1. Otworz repozytorium w GitHub i przejdz do `Settings`.
+2. Wejdz w `Secrets and variables -> Actions`.
+3. Kliknij `New repository secret`.
+4. Ustaw nazwe: `EXTERNAL_IMPORT_SMOKE_URL`.
+5. Ustaw wartosc: pelny URL do stabilnego lotu z zewnetrznego zrodla (https://...).
+6. Zapisz i poczekaj na kolejny nightly run lub uruchom workflow recznie.
+
+Wskazowki:
+- Uzywaj jednego, stalego URL testowego i zmieniaj go tylko gdy przestanie dzialac.
+- Jesli secret nie jest ustawiony, job `e2e-nightly-external-import-smoke` zostanie pominiety.
 
 ## Stabilizacja i jakosc
 

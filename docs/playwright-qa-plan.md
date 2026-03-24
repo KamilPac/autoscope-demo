@@ -2,7 +2,7 @@
 
 ## 1. Cel dokumentu
 
-Celem jest przygotowanie praktycznego planu testów automatycznych dla najczęściej używanych i najbardziej krytycznych ścieżek użytkownika w aplikacji AutoScope.
+Celem jest przygotowanie praktycznego planu testów automatycznych dla najczęściej używanych i najbardziej krytycznych ścieżek użytkownika w aplikacji AutoSearch.
 
 Zakładamy koncentrację na testach funkcjonalnych UI i przepływach użytkownika (end-to-end z perspektywy przeglądarki), uruchamianych lokalnie.
 

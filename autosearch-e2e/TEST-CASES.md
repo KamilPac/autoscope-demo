@@ -49,6 +49,11 @@ Projekt `autosearch-e2e` testuje krytyczne flow aplikacji AutoSearch:
 | CARS-005 | P2 | Cars/Filters | Dodatkowe warianty filtrowania/sortowania/paginacji | tests/cars/filter-sort-pagination.spec.ts | test:p2 |
 | PANEL-004 | P2 | Panel | Zarzadzanie wieloma pozycjami observed | tests/panel/observed-multi.spec.ts | test:p2 |
 | RWD-001 | P2 | Responsive | Mobile smoke dla kluczowych flow | tests/responsive/mobile-core-flows.spec.ts | test:p2 + test:mobile:smoke |
+| IMPORT-004 | Nightly smoke | Import | Realny import zewnętrznego URL (gdy secret jest ustawiony) | tests/import/import-external-nightly.spec.ts | test:import:external-smoke |
+
+Uwaga dla IMPORT-004:
+- Wymagany secret repozytorium: `EXTERNAL_IMPORT_SMOKE_URL`.
+- Bez secretu test jest pomijany lokalnie i job nightly jest pomijany w CI.
 
 ## 4. Uruchamianie
 
@@ -57,6 +62,7 @@ Najczesciej uzywane komendy:
 - `npm run test:p1`
 - `npm run test:p2`
 - `npm run test:mobile:smoke`
+- `npm run test:import:external-smoke`
 - `npm run test:all`
 
 Stabilnosc P0:
@@ -74,6 +80,7 @@ Workflow: `.github/workflows/playwright-e2e.yml`
 - Nightly:
   - job `e2e-nightly-full` -> `npm run test:all`
   - job `e2e-nightly-p0-stability` -> `npm run qa:p0:stability`
+  - job `e2e-nightly-external-import-smoke` -> `npm run test:import:external-smoke` (z sekretem `EXTERNAL_IMPORT_SMOKE_URL`)
 
 Required checks (zalecane na PR):
 - `e2e-p0`
