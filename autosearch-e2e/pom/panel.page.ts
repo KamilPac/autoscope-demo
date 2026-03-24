@@ -3,6 +3,10 @@ import { expect, type Page } from "@playwright/test";
 export class PanelPage {
   constructor(private readonly page: Page) {}
 
+  private observedCardByLot(lotNumber: string) {
+    return this.page.locator("article", { hasText: `Lot ${lotNumber}` }).first();
+  }
+
   async goto(tab?: "profile" | "observed" | "bids") {
     await this.page.goto(tab ? `/panel?tab=${tab}` : "/panel");
   }
@@ -39,8 +43,24 @@ export class PanelPage {
     await expect(this.page.getByRole("link", { name: "Open details" }).first()).toBeVisible();
   }
 
+  async expectObservedEntriesCount(count: number) {
+    await expect(this.page.getByRole("button", { name: "Remove" })).toHaveCount(count);
+  }
+
+  async expectObservedLotVisible(lotNumber: string) {
+    await expect(this.observedCardByLot(lotNumber)).toBeVisible();
+  }
+
+  async expectObservedLotMissing(lotNumber: string) {
+    await expect(this.observedCardByLot(lotNumber)).toHaveCount(0);
+  }
+
   async removeFirstObservedEntry() {
     await this.page.getByRole("button", { name: "Remove" }).first().click();
+  }
+
+  async removeObservedEntryByLot(lotNumber: string) {
+    await this.observedCardByLot(lotNumber).getByRole("button", { name: "Remove" }).click();
   }
 
   async expectObservedTabEmpty() {

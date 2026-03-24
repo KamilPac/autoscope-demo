@@ -154,7 +154,7 @@ Equivalent local commands (from `autosearch-e2e`):
 - `npm run report:p0:passrate`
 - `npm run qa:p0:stability`
 
-P0 scope includes observed removal regression (`observe-remove.spec.ts`) in addition to auth/search/bid/import core checks.
+P0 scope includes observed removal regression (`observe-remove.spec.ts`) and deterministic import->search->details chain (`import-bulk-search-details.spec.ts`) in addition to auth/search/bid/import core checks.
 
 Branch protection checklist (GitHub):
 1. Open repository settings: `Settings -> Branches -> Branch protection rules`.

@@ -2,6 +2,9 @@
 
 Oddzielny projekt testow funkcjonalnych Playwright dla aplikacji AutoSearch.
 
+Dokumentacja case'ow testowych:
+- TEST-CASES.md
+
 ## Uruchomienie
 
 1. Przejdz do katalogu projektu testow.
@@ -39,6 +42,10 @@ Przykladowe komendy:
   - observe + bid flow
   - remove from observed + empty state
   - import lot (stub API dla stabilnosci)
+  - import-bulk -> search -> details (deterministyczny)
+
+- Dodatkowo (P2):
+  - zarzadzanie wieloma pozycjami observed (remove pojedynczo i full clear)
 
 ## CI/CD
 
